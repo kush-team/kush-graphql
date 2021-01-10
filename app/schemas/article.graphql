@@ -1,0 +1,34 @@
+type Article {
+  id: ID!
+  name: String!
+  brief: String!
+  content: String!
+  categoryID: ID!
+  tags: [ID!]
+}
+
+input ArticleInput {
+  name: String!
+  categoryID: ID!
+  brief: String!
+  content: String!
+  tags: [ID!]
+}
+
+extend type Mutation {
+  CreateArticle(Article: ArticleInput!): ArticleResponse
+  UpdateArticle(id: ID!, Article: ArticleInput!): ArticleResponse
+  DeleteArticle(id: ID!): ArticleResponse
+}
+
+extend type Query {
+  GetArticleById(id: ID!): ArticleResponse
+  GetAllArticles: ArticleResponse
+}
+
+type ArticleResponse {
+  message: String!
+  status: Int!
+  data: Article
+  dataList: [Article]
+}

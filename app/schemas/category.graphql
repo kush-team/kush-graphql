@@ -1,0 +1,28 @@
+type Category {
+  id: ID!
+  name: String!
+  parentID: ID!
+}
+
+input CategoryInput {
+  name: String!
+  parentID: ID!
+}
+
+extend type Mutation {
+  CreateCategory(Category: CategoryInput!): CategoryResponse
+  UpdateCategory(id: ID!, Category: CategoryInput!): CategoryResponse
+  DeleteCategory(id: ID!): CategoryResponse
+}
+
+extend type Query {
+  GetCategoryById(id: ID!): CategoryResponse
+  GetAllCategorys: CategoryResponse
+}
+
+type CategoryResponse {
+  message: String!
+  status: Int!
+  data: Category
+  dataList: [Category]
+}

@@ -1,0 +1,30 @@
+type User {
+  id: ID!
+  username: String!
+  emailAddress: String!
+  password: String!
+}
+
+input UserInput {
+  username: String!
+  emailAddress: String!
+  password: String!
+}
+
+extend type Mutation {
+  CreateUser(User: UserInput!): UserResponse
+  UpdateUser(id: ID!, User: UserInput!): UserResponse
+  DeleteUser(id: ID!): UserResponse
+}
+
+extend type Query {
+  GetUserById(id: ID!): UserResponse
+  GetAllUsers: UserResponse
+}
+
+type UserResponse {
+  message: String!
+  status: Int!
+  data: User
+  dataList: [User]
+}
