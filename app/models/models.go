@@ -10,24 +10,26 @@ import (
 )
 
 type Article struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Brief     string    `json:"brief"`
-	Content   string    `json:"content"`
-	Category  *Category `json:"category"`
-	Tags      []*Tag    `json:"tags"`
-	Author    *User     `json:"author"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Brief      string    `json:"brief"`
+	Content    string    `json:"content"`
+	CategoryID string    `json:"categoryID"`
+	Category   *Category `json:"category"`
+	Tags       []*Tag    `json:"tags"`
+	AuthorID   string    `json:"authorID"`
+	Author     *User     `json:"author"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 type ArticleInput struct {
-	Name     string         `json:"name"`
-	Category *CategoryInput `json:"category"`
-	Brief    string         `json:"brief"`
-	Content  string         `json:"content"`
-	Tags     []*TagInput    `json:"tags"`
-	Author   string         `json:"author"`
+	Name       string      `json:"name"`
+	CategoryID string      `json:"categoryID"`
+	Brief      string      `json:"brief"`
+	Content    string      `json:"content"`
+	Tags       []*TagInput `json:"tags"`
+	AuthorID   string      `json:"authorID"`
 }
 
 type ArticleResponse struct {
@@ -38,8 +40,9 @@ type ArticleResponse struct {
 }
 
 type Category struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID       string     `json:"id"`
+	Name     string     `json:"name"`
+	Articles []*Article `json:"articles"`
 }
 
 type CategoryInput struct {
@@ -69,11 +72,12 @@ type TagInput struct {
 }
 
 type User struct {
-	ID           string `json:"id"`
-	Username     string `json:"username"`
-	EmailAddress string `json:"emailAddress"`
-	Password     string `json:"password"`
-	Role         Role   `json:"role"`
+	ID           string     `json:"id"`
+	Username     string     `json:"username"`
+	EmailAddress string     `json:"emailAddress"`
+	Password     string     `json:"password"`
+	Role         Role       `json:"role"`
+	Articles     []*Article `json:"articles"`
 }
 
 type UserInput struct {

@@ -69,7 +69,7 @@ func (s *categoryService) GetAllCategorys() ([]*models.Category, error) {
 
 	var categories []*models.Category
 
-	err := s.db.Find(&categories).Error
+	err := s.db.Preload("Articles").Preload("Articles.Author").Preload("Articles.Category").Find(&categories).Error
 	if err != nil {
 		return nil, err
 	}

@@ -3,8 +3,10 @@ type Article {
   name: String!
   brief: String!
   content: String!
-  category: Category
+  categoryID: ID!
+  category: Category!
   tags: [Tag]
+  authorID: ID!
   author: User!
   createdAt: Time!
   updatedAt: Time!
@@ -12,11 +14,11 @@ type Article {
 
 input ArticleInput {
   name: String!
-  category: CategoryInput
+  categoryID: ID!
   brief: String!
   content: String!
   tags: [TagInput]
-  author: ID!
+  authorID: ID!
 }
 
 extend type Mutation {
@@ -38,4 +40,8 @@ type ArticleResponse {
   status: Int!
   data: Article
   dataList: [Article]
+}
+
+type Subscription {
+  articleAdded: Article!
 }

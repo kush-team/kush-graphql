@@ -4,6 +4,7 @@ type User {
   emailAddress: String!
   password: String!
   role: Role!
+  articles: [Article!]!
 }
 
 input UserInput {

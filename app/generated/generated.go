@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"kush-graphql/app/models"
 	"strconv"
 	"sync"
@@ -38,6 +39,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Subscription() SubscriptionResolver
 }
 
 type DirectiveRoot struct {
@@ -46,15 +48,17 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Article struct {
-		Author    func(childComplexity int) int
-		Brief     func(childComplexity int) int
-		Category  func(childComplexity int) int
-		Content   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Tags      func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		Author     func(childComplexity int) int
+		AuthorID   func(childComplexity int) int
+		Brief      func(childComplexity int) int
+		Category   func(childComplexity int) int
+		CategoryID func(childComplexity int) int
+		Content    func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Name       func(childComplexity int) int
+		Tags       func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
 	}
 
 	ArticleResponse struct {
@@ -65,8 +69,9 @@ type ComplexityRoot struct {
 	}
 
 	Category struct {
-		ID   func(childComplexity int) int
-		Name func(childComplexity int) int
+		Articles func(childComplexity int) int
+		ID       func(childComplexity int) int
+		Name     func(childComplexity int) int
 	}
 
 	CategoryResponse struct {
@@ -106,12 +111,17 @@ type ComplexityRoot struct {
 		GetUserByID           func(childComplexity int, id string) int
 	}
 
+	Subscription struct {
+		ArticleAdded func(childComplexity int) int
+	}
+
 	Tag struct {
 		ID   func(childComplexity int) int
 		Name func(childComplexity int) int
 	}
 
 	User struct {
+		Articles     func(childComplexity int) int
 		EmailAddress func(childComplexity int) int
 		ID           func(childComplexity int) int
 		Password     func(childComplexity int) int
@@ -149,6 +159,9 @@ type QueryResolver interface {
 	GetUserByID(ctx context.Context, id string) (*models.UserResponse, error)
 	GetAllUsers(ctx context.Context) (*models.UserResponse, error)
 }
+type SubscriptionResolver interface {
+	ArticleAdded(ctx context.Context) (<-chan *models.Article, error)
+}
 
 type executableSchema struct {
 	resolvers  ResolverRoot
@@ -172,6 +185,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Article.Author(childComplexity), true
 
+	case "Article.authorID":
+		if e.complexity.Article.AuthorID == nil {
+			break
+		}
+
+		return e.complexity.Article.AuthorID(childComplexity), true
+
 	case "Article.brief":
 		if e.complexity.Article.Brief == nil {
 			break
@@ -185,6 +205,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Article.Category(childComplexity), true
+
+	case "Article.categoryID":
+		if e.complexity.Article.CategoryID == nil {
+			break
+		}
+
+		return e.complexity.Article.CategoryID(childComplexity), true
 
 	case "Article.content":
 		if e.complexity.Article.Content == nil {
@@ -255,6 +282,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ArticleResponse.Status(childComplexity), true
+
+	case "Category.articles":
+		if e.complexity.Category.Articles == nil {
+			break
+		}
+
+		return e.complexity.Category.Articles(childComplexity), true
 
 	case "Category.id":
 		if e.complexity.Category.ID == nil {
@@ -520,6 +554,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetUserByID(childComplexity, args["id"].(string)), true
 
+	case "Subscription.articleAdded":
+		if e.complexity.Subscription.ArticleAdded == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ArticleAdded(childComplexity), true
+
 	case "Tag.id":
 		if e.complexity.Tag.ID == nil {
 			break
@@ -533,6 +574,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Tag.Name(childComplexity), true
+
+	case "User.articles":
+		if e.complexity.User.Articles == nil {
+			break
+		}
+
+		return e.complexity.User.Articles(childComplexity), true
 
 	case "User.emailAddress":
 		if e.complexity.User.EmailAddress == nil {
@@ -635,6 +683,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next()
+
+			if data == nil {
+				return nil
+			}
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -666,8 +731,10 @@ var sources = []*ast.Source{
   name: String!
   brief: String!
   content: String!
-  category: Category
+  categoryID: ID!
+  category: Category!
   tags: [Tag]
+  authorID: ID!
   author: User!
   createdAt: Time!
   updatedAt: Time!
@@ -675,11 +742,11 @@ var sources = []*ast.Source{
 
 input ArticleInput {
   name: String!
-  category: CategoryInput
+  categoryID: ID!
   brief: String!
   content: String!
   tags: [TagInput]
-  author: ID!
+  authorID: ID!
 }
 
 extend type Mutation {
@@ -702,10 +769,15 @@ type ArticleResponse {
   data: Article
   dataList: [Article]
 }
+
+type Subscription {
+  articleAdded: Article!
+}
 `, BuiltIn: false},
 	{Name: "app/schemas/category.graphql", Input: `type Category {
   id: ID!
   name: String!
+  articles: [Article!]!
 }
 
 input CategoryInput {
@@ -758,6 +830,7 @@ input TagInput {
   emailAddress: String!
   password: String!
   role: Role!
+  articles: [Article!]!
 }
 
 input UserInput {
@@ -1264,6 +1337,40 @@ func (ec *executionContext) _Article_content(ctx context.Context, field graphql.
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Article_categoryID(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Article",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CategoryID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Article_category(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1288,11 +1395,14 @@ func (ec *executionContext) _Article_category(ctx context.Context, field graphql
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
 	res := resTmp.(*models.Category)
 	fc.Result = res
-	return ec.marshalOCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategory(ctx, field.Selections, res)
+	return ec.marshalNCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Article_tags(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
@@ -1324,6 +1434,40 @@ func (ec *executionContext) _Article_tags(ctx context.Context, field graphql.Col
 	res := resTmp.([]*models.Tag)
 	fc.Result = res
 	return ec.marshalOTag2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTag(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Article_authorID(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Article",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AuthorID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Article_author(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
@@ -1624,6 +1768,40 @@ func (ec *executionContext) _Category_name(ctx context.Context, field graphql.Co
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Category_articles(ctx context.Context, field graphql.CollectedField, obj *models.Category) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Category",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Articles, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*models.Article)
+	fc.Result = res
+	return ec.marshalNArticle2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _CategoryResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.CategoryResponse) (ret graphql.Marshaler) {
@@ -2851,6 +3029,50 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Subscription_articleAdded(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Subscription",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ArticleAdded(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *models.Article)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNArticle2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticle(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
 func (ec *executionContext) _Tag_id(ctx context.Context, field graphql.CollectedField, obj *models.Tag) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3087,6 +3309,40 @@ func (ec *executionContext) _User_role(ctx context.Context, field graphql.Collec
 	res := resTmp.(models.Role)
 	fc.Result = res
 	return ec.marshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_articles(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Articles, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*models.Article)
+	fc.Result = res
+	return ec.marshalNArticle2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _UserResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.UserResponse) (ret graphql.Marshaler) {
@@ -4288,11 +4544,11 @@ func (ec *executionContext) unmarshalInputArticleInput(ctx context.Context, obj 
 			if err != nil {
 				return it, err
 			}
-		case "category":
+		case "categoryID":
 			var err error
 
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("category"))
-			it.Category, err = ec.unmarshalOCategoryInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx, v)
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("categoryID"))
+			it.CategoryID, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4320,11 +4576,11 @@ func (ec *executionContext) unmarshalInputArticleInput(ctx context.Context, obj 
 			if err != nil {
 				return it, err
 			}
-		case "author":
+		case "authorID":
 			var err error
 
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("author"))
-			it.Author, err = ec.unmarshalNID2string(ctx, v)
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("authorID"))
+			it.AuthorID, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4457,10 +4713,23 @@ func (ec *executionContext) _Article(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "categoryID":
+			out.Values[i] = ec._Article_categoryID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "category":
 			out.Values[i] = ec._Article_category(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "tags":
 			out.Values[i] = ec._Article_tags(ctx, field, obj)
+		case "authorID":
+			out.Values[i] = ec._Article_authorID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "author":
 			out.Values[i] = ec._Article_author(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -4541,6 +4810,11 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "name":
 			out.Values[i] = ec._Category_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articles":
+			out.Values[i] = ec._Category_articles(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -4789,6 +5063,26 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func() graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		ec.Errorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "articleAdded":
+		return ec._Subscription_articleAdded(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
+}
+
 var tagImplementors = []string{"Tag"}
 
 func (ec *executionContext) _Tag(ctx context.Context, sel ast.SelectionSet, obj *models.Tag) graphql.Marshaler {
@@ -4854,6 +5148,11 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "role":
 			out.Values[i] = ec._User_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articles":
+			out.Values[i] = ec._User_articles(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -5149,6 +5448,57 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNArticle2kushᚑgraphqlᚋappᚋmodelsᚐArticle(ctx context.Context, sel ast.SelectionSet, v models.Article) graphql.Marshaler {
+	return ec._Article(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNArticle2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Article) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNArticle2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticle(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNArticle2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticle(ctx context.Context, sel ast.SelectionSet, v *models.Article) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Article(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNArticleInput2kushᚑgraphqlᚋappᚋmodelsᚐArticleInput(ctx context.Context, v interface{}) (models.ArticleInput, error) {
 	res, err := ec.unmarshalInputArticleInput(ctx, v)
 	return res, graphql.WrapErrorWithInputPath(ctx, err)
@@ -5167,6 +5517,16 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategory(ctx context.Context, sel ast.SelectionSet, v *models.Category) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Category(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNCategoryInput2kushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx context.Context, v interface{}) (models.CategoryInput, error) {
@@ -5616,14 +5976,6 @@ func (ec *executionContext) marshalOCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐ
 		return graphql.Null
 	}
 	return ec._Category(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalOCategoryInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx context.Context, v interface{}) (*models.CategoryInput, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputCategoryInput(ctx, v)
-	return &res, graphql.WrapErrorWithInputPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx context.Context, sel ast.SelectionSet, v *models.CategoryResponse) graphql.Marshaler {

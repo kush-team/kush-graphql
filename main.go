@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"kush-graphql/app/auth"
+	"kush-graphql/app/domain/repository/article"
 	"kush-graphql/app/domain/repository/category"
 	"kush-graphql/app/domain/repository/user"
 	"kush-graphql/app/generated"
@@ -54,13 +55,16 @@ func main() {
 
 	var userService user.UserService
 	var categoryService category.CategoryService
+	var articleService article.ArticleService
 
 	userService = persistence.NewUser(conn)
 	categoryService = persistence.NewCategory(conn)
+	articleService = persistence.NewArticle(conn)
 
 	c := generated.Config{Resolvers: &interfaces.Resolver{
 		UserService:     userService,
 		CategoryService: categoryService,
+		ArticleService:  articleService,
 	}}
 
 	c.Directives.HasRole = func(ctx context.Context, obj interface{}, next graphql.Resolver, role models.Role) (interface{}, error) {
