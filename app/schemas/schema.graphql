@@ -1,5 +1,10 @@
 # Custom schema
 
+enum Role {
+  ADMIN
+  USER
+}
+
+directive @hasRole(role: Role!) on FIELD_DEFINITION
+
 scalar Time
-
-

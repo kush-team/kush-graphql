@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"kush-graphql/app/models"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
@@ -39,16 +41,20 @@ type ResolverRoot interface {
 }
 
 type DirectiveRoot struct {
+	HasRole func(ctx context.Context, obj interface{}, next graphql.Resolver, role models.Role) (res interface{}, err error)
 }
 
 type ComplexityRoot struct {
 	Article struct {
-		Brief      func(childComplexity int) int
-		CategoryID func(childComplexity int) int
-		Content    func(childComplexity int) int
-		ID         func(childComplexity int) int
-		Name       func(childComplexity int) int
-		Tags       func(childComplexity int) int
+		Author    func(childComplexity int) int
+		Brief     func(childComplexity int) int
+		Category  func(childComplexity int) int
+		Content   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Tags      func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	ArticleResponse struct {
@@ -59,9 +65,8 @@ type ComplexityRoot struct {
 	}
 
 	Category struct {
-		ID       func(childComplexity int) int
-		Name     func(childComplexity int) int
-		ParentID func(childComplexity int) int
+		ID   func(childComplexity int) int
+		Name func(childComplexity int) int
 	}
 
 	CategoryResponse struct {
@@ -74,27 +79,24 @@ type ComplexityRoot struct {
 	Mutation struct {
 		CreateArticle  func(childComplexity int, article models.ArticleInput) int
 		CreateCategory func(childComplexity int, category models.CategoryInput) int
-		CreateTag      func(childComplexity int, tag models.TagInput) int
 		CreateUser     func(childComplexity int, user models.UserInput) int
 		DeleteArticle  func(childComplexity int, id string) int
 		DeleteCategory func(childComplexity int, id string) int
-		DeleteTag      func(childComplexity int, id string) int
 		DeleteUser     func(childComplexity int, id string) int
 		UpdateArticle  func(childComplexity int, id string, article models.ArticleInput) int
 		UpdateCategory func(childComplexity int, id string, category models.CategoryInput) int
-		UpdateTag      func(childComplexity int, id string, tag models.TagInput) int
 		UpdateUser     func(childComplexity int, id string, user models.UserInput) int
 	}
 
 	Query struct {
-		GetAllArticles  func(childComplexity int) int
-		GetAllCategorys func(childComplexity int) int
-		GetAllTags      func(childComplexity int) int
-		GetAllUsers     func(childComplexity int) int
-		GetArticleByID  func(childComplexity int, id string) int
-		GetCategoryByID func(childComplexity int, id string) int
-		GetTagByID      func(childComplexity int, id string) int
-		GetUserByID     func(childComplexity int, id string) int
+		GetAllArticles        func(childComplexity int) int
+		GetAllCategorys       func(childComplexity int) int
+		GetAllUsers           func(childComplexity int) int
+		GetArticleByID        func(childComplexity int, id string) int
+		GetArticlesByCategory func(childComplexity int, category models.CategoryInput) int
+		GetArticlesByTags     func(childComplexity int, tags []*models.TagInput) int
+		GetCategoryByID       func(childComplexity int, id string) int
+		GetUserByID           func(childComplexity int, id string) int
 	}
 
 	Tag struct {
@@ -102,17 +104,11 @@ type ComplexityRoot struct {
 		Name func(childComplexity int) int
 	}
 
-	TagResponse struct {
-		Data     func(childComplexity int) int
-		DataList func(childComplexity int) int
-		Message  func(childComplexity int) int
-		Status   func(childComplexity int) int
-	}
-
 	User struct {
 		EmailAddress func(childComplexity int) int
 		ID           func(childComplexity int) int
 		Password     func(childComplexity int) int
+		Role         func(childComplexity int) int
 		Username     func(childComplexity int) int
 	}
 
@@ -131,9 +127,6 @@ type MutationResolver interface {
 	CreateCategory(ctx context.Context, category models.CategoryInput) (*models.CategoryResponse, error)
 	UpdateCategory(ctx context.Context, id string, category models.CategoryInput) (*models.CategoryResponse, error)
 	DeleteCategory(ctx context.Context, id string) (*models.CategoryResponse, error)
-	CreateTag(ctx context.Context, tag models.TagInput) (*models.TagResponse, error)
-	UpdateTag(ctx context.Context, id string, tag models.TagInput) (*models.TagResponse, error)
-	DeleteTag(ctx context.Context, id string) (*models.TagResponse, error)
 	CreateUser(ctx context.Context, user models.UserInput) (*models.UserResponse, error)
 	UpdateUser(ctx context.Context, id string, user models.UserInput) (*models.UserResponse, error)
 	DeleteUser(ctx context.Context, id string) (*models.UserResponse, error)
@@ -141,10 +134,10 @@ type MutationResolver interface {
 type QueryResolver interface {
 	GetArticleByID(ctx context.Context, id string) (*models.ArticleResponse, error)
 	GetAllArticles(ctx context.Context) (*models.ArticleResponse, error)
+	GetArticlesByTags(ctx context.Context, tags []*models.TagInput) (*models.ArticleResponse, error)
+	GetArticlesByCategory(ctx context.Context, category models.CategoryInput) (*models.ArticleResponse, error)
 	GetCategoryByID(ctx context.Context, id string) (*models.CategoryResponse, error)
 	GetAllCategorys(ctx context.Context) (*models.CategoryResponse, error)
-	GetTagByID(ctx context.Context, id string) (*models.TagResponse, error)
-	GetAllTags(ctx context.Context) (*models.TagResponse, error)
 	GetUserByID(ctx context.Context, id string) (*models.UserResponse, error)
 	GetAllUsers(ctx context.Context) (*models.UserResponse, error)
 }
@@ -164,6 +157,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
+	case "Article.author":
+		if e.complexity.Article.Author == nil {
+			break
+		}
+
+		return e.complexity.Article.Author(childComplexity), true
+
 	case "Article.brief":
 		if e.complexity.Article.Brief == nil {
 			break
@@ -171,12 +171,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Article.Brief(childComplexity), true
 
-	case "Article.categoryID":
-		if e.complexity.Article.CategoryID == nil {
+	case "Article.category":
+		if e.complexity.Article.Category == nil {
 			break
 		}
 
-		return e.complexity.Article.CategoryID(childComplexity), true
+		return e.complexity.Article.Category(childComplexity), true
 
 	case "Article.content":
 		if e.complexity.Article.Content == nil {
@@ -184,6 +184,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Article.Content(childComplexity), true
+
+	case "Article.createdAt":
+		if e.complexity.Article.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.Article.CreatedAt(childComplexity), true
 
 	case "Article.id":
 		if e.complexity.Article.ID == nil {
@@ -205,6 +212,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Article.Tags(childComplexity), true
+
+	case "Article.updatedAt":
+		if e.complexity.Article.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.Article.UpdatedAt(childComplexity), true
 
 	case "ArticleResponse.data":
 		if e.complexity.ArticleResponse.Data == nil {
@@ -247,13 +261,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Category.Name(childComplexity), true
-
-	case "Category.parentID":
-		if e.complexity.Category.ParentID == nil {
-			break
-		}
-
-		return e.complexity.Category.ParentID(childComplexity), true
 
 	case "CategoryResponse.data":
 		if e.complexity.CategoryResponse.Data == nil {
@@ -307,18 +314,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateCategory(childComplexity, args["Category"].(models.CategoryInput)), true
 
-	case "Mutation.CreateTag":
-		if e.complexity.Mutation.CreateTag == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_CreateTag_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CreateTag(childComplexity, args["Tag"].(models.TagInput)), true
-
 	case "Mutation.CreateUser":
 		if e.complexity.Mutation.CreateUser == nil {
 			break
@@ -354,18 +349,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteCategory(childComplexity, args["id"].(string)), true
-
-	case "Mutation.DeleteTag":
-		if e.complexity.Mutation.DeleteTag == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_DeleteTag_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.DeleteTag(childComplexity, args["id"].(string)), true
 
 	case "Mutation.DeleteUser":
 		if e.complexity.Mutation.DeleteUser == nil {
@@ -403,18 +386,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.UpdateCategory(childComplexity, args["id"].(string), args["Category"].(models.CategoryInput)), true
 
-	case "Mutation.UpdateTag":
-		if e.complexity.Mutation.UpdateTag == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_UpdateTag_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.UpdateTag(childComplexity, args["id"].(string), args["Tag"].(models.TagInput)), true
-
 	case "Mutation.UpdateUser":
 		if e.complexity.Mutation.UpdateUser == nil {
 			break
@@ -441,13 +412,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetAllCategorys(childComplexity), true
 
-	case "Query.GetAllTags":
-		if e.complexity.Query.GetAllTags == nil {
-			break
-		}
-
-		return e.complexity.Query.GetAllTags(childComplexity), true
-
 	case "Query.GetAllUsers":
 		if e.complexity.Query.GetAllUsers == nil {
 			break
@@ -467,6 +431,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetArticleByID(childComplexity, args["id"].(string)), true
 
+	case "Query.GetArticlesByCategory":
+		if e.complexity.Query.GetArticlesByCategory == nil {
+			break
+		}
+
+		args, err := ec.field_Query_GetArticlesByCategory_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetArticlesByCategory(childComplexity, args["category"].(models.CategoryInput)), true
+
+	case "Query.GetArticlesByTags":
+		if e.complexity.Query.GetArticlesByTags == nil {
+			break
+		}
+
+		args, err := ec.field_Query_GetArticlesByTags_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetArticlesByTags(childComplexity, args["tags"].([]*models.TagInput)), true
+
 	case "Query.GetCategoryById":
 		if e.complexity.Query.GetCategoryByID == nil {
 			break
@@ -478,18 +466,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.GetCategoryByID(childComplexity, args["id"].(string)), true
-
-	case "Query.GetTagById":
-		if e.complexity.Query.GetTagByID == nil {
-			break
-		}
-
-		args, err := ec.field_Query_GetTagById_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.GetTagByID(childComplexity, args["id"].(string)), true
 
 	case "Query.GetUserById":
 		if e.complexity.Query.GetUserByID == nil {
@@ -517,34 +493,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Tag.Name(childComplexity), true
 
-	case "TagResponse.data":
-		if e.complexity.TagResponse.Data == nil {
-			break
-		}
-
-		return e.complexity.TagResponse.Data(childComplexity), true
-
-	case "TagResponse.dataList":
-		if e.complexity.TagResponse.DataList == nil {
-			break
-		}
-
-		return e.complexity.TagResponse.DataList(childComplexity), true
-
-	case "TagResponse.message":
-		if e.complexity.TagResponse.Message == nil {
-			break
-		}
-
-		return e.complexity.TagResponse.Message(childComplexity), true
-
-	case "TagResponse.status":
-		if e.complexity.TagResponse.Status == nil {
-			break
-		}
-
-		return e.complexity.TagResponse.Status(childComplexity), true
-
 	case "User.emailAddress":
 		if e.complexity.User.EmailAddress == nil {
 			break
@@ -565,6 +513,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.Password(childComplexity), true
+
+	case "User.role":
+		if e.complexity.User.Role == nil {
+			break
+		}
+
+		return e.complexity.User.Role(childComplexity), true
 
 	case "User.username":
 		if e.complexity.User.Username == nil {
@@ -670,27 +625,34 @@ var sources = []*ast.Source{
   name: String!
   brief: String!
   content: String!
-  categoryID: ID!
-  tags: [ID!]
+  category: Category
+  tags: [Tag]
+  author: User!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 input ArticleInput {
   name: String!
-  categoryID: ID!
+  category: CategoryInput
   brief: String!
   content: String!
-  tags: [ID!]
+  tags: [TagInput]
+  author: ID!
 }
 
 extend type Mutation {
-  CreateArticle(Article: ArticleInput!): ArticleResponse
+  CreateArticle(Article: ArticleInput!): ArticleResponse @hasRole(role: ADMIN)
   UpdateArticle(id: ID!, Article: ArticleInput!): ArticleResponse
-  DeleteArticle(id: ID!): ArticleResponse
+    @hasRole(role: ADMIN)
+  DeleteArticle(id: ID!): ArticleResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
   GetArticleById(id: ID!): ArticleResponse
   GetAllArticles: ArticleResponse
+  GetArticlesByTags(tags: [TagInput!]): ArticleResponse
+  GetArticlesByCategory(category: CategoryInput!): ArticleResponse
 }
 
 type ArticleResponse {
@@ -703,18 +665,18 @@ type ArticleResponse {
 	{Name: "app/schemas/category.graphql", Input: `type Category {
   id: ID!
   name: String!
-  parentID: ID!
 }
 
 input CategoryInput {
   name: String!
-  parentID: ID!
 }
 
 extend type Mutation {
   CreateCategory(Category: CategoryInput!): CategoryResponse
+    @hasRole(role: ADMIN)
   UpdateCategory(id: ID!, Category: CategoryInput!): CategoryResponse
-  DeleteCategory(id: ID!): CategoryResponse
+    @hasRole(role: ADMIN)
+  DeleteCategory(id: ID!): CategoryResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
@@ -731,9 +693,14 @@ type CategoryResponse {
 `, BuiltIn: false},
 	{Name: "app/schemas/schema.graphql", Input: `# Custom schema
 
+enum Role {
+  ADMIN
+  USER
+}
+
+directive @hasRole(role: Role!) on FIELD_DEFINITION
+
 scalar Time
-
-
 `, BuiltIn: false},
 	{Name: "app/schemas/tag.graphql", Input: `type Tag {
   id: ID!
@@ -743,47 +710,31 @@ scalar Time
 input TagInput {
   name: String!
 }
-
-extend type Mutation {
-  CreateTag(Tag: TagInput!): TagResponse
-  UpdateTag(id: ID!, Tag: TagInput!): TagResponse
-  DeleteTag(id: ID!): TagResponse
-}
-
-extend type Query {
-  GetTagById(id: ID!): TagResponse
-  GetAllTags: TagResponse
-}
-
-type TagResponse {
-  message: String!
-  status: Int!
-  data: Tag
-  dataList: [Tag]
-}
 `, BuiltIn: false},
 	{Name: "app/schemas/user.graphql", Input: `type User {
   id: ID!
   username: String!
   emailAddress: String!
   password: String!
+  role: Role
 }
 
 input UserInput {
   username: String!
   emailAddress: String!
   password: String!
+  role: Role!
 }
 
 extend type Mutation {
-  CreateUser(User: UserInput!): UserResponse
-  UpdateUser(id: ID!, User: UserInput!): UserResponse
-  DeleteUser(id: ID!): UserResponse
+  CreateUser(User: UserInput!): UserResponse @hasRole(role: ADMIN)
+  UpdateUser(id: ID!, User: UserInput!): UserResponse @hasRole(role: ADMIN)
+  DeleteUser(id: ID!): UserResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
-  GetUserById(id: ID!): UserResponse
-  GetAllUsers: UserResponse
+  GetUserById(id: ID!): UserResponse @hasRole(role: ADMIN)
+  GetAllUsers: UserResponse @hasRole(role: ADMIN)
 }
 
 type UserResponse {
@@ -799,6 +750,21 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) dir_hasRole_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 models.Role
+	if tmp, ok := rawArgs["role"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("role"))
+		arg0, err = ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["role"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_CreateArticle_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -827,21 +793,6 @@ func (ec *executionContext) field_Mutation_CreateCategory_args(ctx context.Conte
 		}
 	}
 	args["Category"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_CreateTag_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 models.TagInput
-	if tmp, ok := rawArgs["Tag"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("Tag"))
-		arg0, err = ec.unmarshalNTagInput2kushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["Tag"] = arg0
 	return args, nil
 }
 
@@ -876,21 +827,6 @@ func (ec *executionContext) field_Mutation_DeleteArticle_args(ctx context.Contex
 }
 
 func (ec *executionContext) field_Mutation_DeleteCategory_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["id"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_DeleteTag_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
@@ -968,30 +904,6 @@ func (ec *executionContext) field_Mutation_UpdateCategory_args(ctx context.Conte
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_UpdateTag_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["id"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["id"] = arg0
-	var arg1 models.TagInput
-	if tmp, ok := rawArgs["Tag"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("Tag"))
-		arg1, err = ec.unmarshalNTagInput2kushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["Tag"] = arg1
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_UpdateUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -1031,22 +943,37 @@ func (ec *executionContext) field_Query_GetArticleById_args(ctx context.Context,
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_GetCategoryById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_GetArticlesByCategory_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["id"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
-		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+	var arg0 models.CategoryInput
+	if tmp, ok := rawArgs["category"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("category"))
+		arg0, err = ec.unmarshalNCategoryInput2kushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["id"] = arg0
+	args["category"] = arg0
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_GetTagById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Query_GetArticlesByTags_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 []*models.TagInput
+	if tmp, ok := rawArgs["tags"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("tags"))
+		arg0, err = ec.unmarshalOTagInput2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInputᚄ(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["tags"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_GetCategoryById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
@@ -1265,7 +1192,7 @@ func (ec *executionContext) _Article_content(ctx context.Context, field graphql.
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Article_categoryID(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+func (ec *executionContext) _Article_category(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1282,21 +1209,18 @@ func (ec *executionContext) _Article_categoryID(ctx context.Context, field graph
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.CategoryID, nil
+		return obj.Category, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*models.Category)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
+	return ec.marshalOCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategory(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Article_tags(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
@@ -1325,9 +1249,111 @@ func (ec *executionContext) _Article_tags(ctx context.Context, field graphql.Col
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.([]string)
+	res := resTmp.([]*models.Tag)
 	fc.Result = res
-	return ec.marshalOID2ᚕstringᚄ(ctx, field.Selections, res)
+	return ec.marshalOTag2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTag(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Article_author(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Article",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Author, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*models.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Article_createdAt(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Article",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Article_updatedAt(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Article",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ArticleResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.ArticleResponse) (ret graphql.Marshaler) {
@@ -1528,40 +1554,6 @@ func (ec *executionContext) _Category_name(ctx context.Context, field graphql.Co
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Category_parentID(ctx context.Context, field graphql.CollectedField, obj *models.Category) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Category",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ParentID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
 func (ec *executionContext) _CategoryResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.CategoryResponse) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1715,8 +1707,32 @@ func (ec *executionContext) _Mutation_CreateArticle(ctx context.Context, field g
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateArticle(rctx, args["Article"].(models.ArticleInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().CreateArticle(rctx, args["Article"].(models.ArticleInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ArticleResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ArticleResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1753,8 +1769,32 @@ func (ec *executionContext) _Mutation_UpdateArticle(ctx context.Context, field g
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateArticle(rctx, args["id"].(string), args["Article"].(models.ArticleInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().UpdateArticle(rctx, args["id"].(string), args["Article"].(models.ArticleInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ArticleResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ArticleResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1791,8 +1831,32 @@ func (ec *executionContext) _Mutation_DeleteArticle(ctx context.Context, field g
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteArticle(rctx, args["id"].(string))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().DeleteArticle(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ArticleResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ArticleResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1829,8 +1893,32 @@ func (ec *executionContext) _Mutation_CreateCategory(ctx context.Context, field 
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateCategory(rctx, args["Category"].(models.CategoryInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().CreateCategory(rctx, args["Category"].(models.CategoryInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.CategoryResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.CategoryResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1867,8 +1955,32 @@ func (ec *executionContext) _Mutation_UpdateCategory(ctx context.Context, field 
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateCategory(rctx, args["id"].(string), args["Category"].(models.CategoryInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().UpdateCategory(rctx, args["id"].(string), args["Category"].(models.CategoryInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.CategoryResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.CategoryResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1905,8 +2017,32 @@ func (ec *executionContext) _Mutation_DeleteCategory(ctx context.Context, field 
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteCategory(rctx, args["id"].(string))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().DeleteCategory(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.CategoryResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.CategoryResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1918,120 +2054,6 @@ func (ec *executionContext) _Mutation_DeleteCategory(ctx context.Context, field 
 	res := resTmp.(*models.CategoryResponse)
 	fc.Result = res
 	return ec.marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Mutation_CreateTag(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Mutation",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_CreateTag_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	fc.Args = args
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateTag(rctx, args["Tag"].(models.TagInput))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.TagResponse)
-	fc.Result = res
-	return ec.marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Mutation_UpdateTag(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Mutation",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_UpdateTag_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	fc.Args = args
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateTag(rctx, args["id"].(string), args["Tag"].(models.TagInput))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.TagResponse)
-	fc.Result = res
-	return ec.marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Mutation_DeleteTag(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Mutation",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_DeleteTag_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	fc.Args = args
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteTag(rctx, args["id"].(string))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.TagResponse)
-	fc.Result = res
-	return ec.marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_CreateUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2057,8 +2079,32 @@ func (ec *executionContext) _Mutation_CreateUser(ctx context.Context, field grap
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateUser(rctx, args["User"].(models.UserInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().CreateUser(rctx, args["User"].(models.UserInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.UserResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.UserResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2095,8 +2141,32 @@ func (ec *executionContext) _Mutation_UpdateUser(ctx context.Context, field grap
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateUser(rctx, args["id"].(string), args["User"].(models.UserInput))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().UpdateUser(rctx, args["id"].(string), args["User"].(models.UserInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.UserResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.UserResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2133,8 +2203,32 @@ func (ec *executionContext) _Mutation_DeleteUser(ctx context.Context, field grap
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteUser(rctx, args["id"].(string))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().DeleteUser(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.UserResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.UserResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2217,6 +2311,82 @@ func (ec *executionContext) _Query_GetAllArticles(ctx context.Context, field gra
 	return ec.marshalOArticleResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleResponse(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_GetArticlesByTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_GetArticlesByTags_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetArticlesByTags(rctx, args["tags"].([]*models.TagInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ArticleResponse)
+	fc.Result = res
+	return ec.marshalOArticleResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_GetArticlesByCategory(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_GetArticlesByCategory_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetArticlesByCategory(rctx, args["category"].(models.CategoryInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ArticleResponse)
+	fc.Result = res
+	return ec.marshalOArticleResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐArticleResponse(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query_GetCategoryById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2286,75 +2456,6 @@ func (ec *executionContext) _Query_GetAllCategorys(ctx context.Context, field gr
 	return ec.marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Query_GetTagById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Query",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Query_GetTagById_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	fc.Args = args
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetTagByID(rctx, args["id"].(string))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.TagResponse)
-	fc.Result = res
-	return ec.marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Query_GetAllTags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "Query",
-		Field:    field,
-		Args:     nil,
-		IsMethod: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetAllTags(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.TagResponse)
-	fc.Result = res
-	return ec.marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx, field.Selections, res)
-}
-
 func (ec *executionContext) _Query_GetUserById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2378,8 +2479,32 @@ func (ec *executionContext) _Query_GetUserById(ctx context.Context, field graphq
 	}
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetUserByID(rctx, args["id"].(string))
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Query().GetUserByID(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.UserResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.UserResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2409,8 +2534,32 @@ func (ec *executionContext) _Query_GetAllUsers(ctx context.Context, field graphq
 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetAllUsers(rctx)
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Query().GetAllUsers(rctx)
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.UserResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.UserResponse`, tmp)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2561,136 +2710,6 @@ func (ec *executionContext) _Tag_name(ctx context.Context, field graphql.Collect
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _TagResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.TagResponse) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "TagResponse",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Message, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _TagResponse_status(ctx context.Context, field graphql.CollectedField, obj *models.TagResponse) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "TagResponse",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Status, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int)
-	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _TagResponse_data(ctx context.Context, field graphql.CollectedField, obj *models.TagResponse) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "TagResponse",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Data, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*models.Tag)
-	fc.Result = res
-	return ec.marshalOTag2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTag(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _TagResponse_dataList(ctx context.Context, field graphql.CollectedField, obj *models.TagResponse) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:   "TagResponse",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.DataList, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.([]*models.Tag)
-	fc.Result = res
-	return ec.marshalOTag2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTag(ctx, field.Selections, res)
-}
-
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2825,6 +2844,37 @@ func (ec *executionContext) _User_password(ctx context.Context, field graphql.Co
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_role(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "User",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Role, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.Role)
+	fc.Result = res
+	return ec.marshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _UserResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.UserResponse) (ret graphql.Marshaler) {
@@ -4026,11 +4076,11 @@ func (ec *executionContext) unmarshalInputArticleInput(ctx context.Context, obj 
 			if err != nil {
 				return it, err
 			}
-		case "categoryID":
+		case "category":
 			var err error
 
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("categoryID"))
-			it.CategoryID, err = ec.unmarshalNID2string(ctx, v)
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("category"))
+			it.Category, err = ec.unmarshalOCategoryInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4054,7 +4104,15 @@ func (ec *executionContext) unmarshalInputArticleInput(ctx context.Context, obj 
 			var err error
 
 			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("tags"))
-			it.Tags, err = ec.unmarshalOID2ᚕstringᚄ(ctx, v)
+			it.Tags, err = ec.unmarshalOTagInput2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "author":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("author"))
+			it.Author, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4075,14 +4133,6 @@ func (ec *executionContext) unmarshalInputCategoryInput(ctx context.Context, obj
 
 			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("name"))
 			it.Name, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "parentID":
-			var err error
-
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("parentID"))
-			it.ParentID, err = ec.unmarshalNID2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4142,6 +4192,14 @@ func (ec *executionContext) unmarshalInputUserInput(ctx context.Context, obj int
 			if err != nil {
 				return it, err
 			}
+		case "role":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("role"))
+			it.Role, err = ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, v)
+			if err != nil {
+				return it, err
+			}
 		}
 	}
 
@@ -4187,13 +4245,25 @@ func (ec *executionContext) _Article(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "categoryID":
-			out.Values[i] = ec._Article_categoryID(ctx, field, obj)
+		case "category":
+			out.Values[i] = ec._Article_category(ctx, field, obj)
+		case "tags":
+			out.Values[i] = ec._Article_tags(ctx, field, obj)
+		case "author":
+			out.Values[i] = ec._Article_author(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "tags":
-			out.Values[i] = ec._Article_tags(ctx, field, obj)
+		case "createdAt":
+			out.Values[i] = ec._Article_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Article_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4259,11 +4329,6 @@ func (ec *executionContext) _Category(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "name":
 			out.Values[i] = ec._Category_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "parentID":
-			out.Values[i] = ec._Category_parentID(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -4341,12 +4406,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec._Mutation_UpdateCategory(ctx, field)
 		case "DeleteCategory":
 			out.Values[i] = ec._Mutation_DeleteCategory(ctx, field)
-		case "CreateTag":
-			out.Values[i] = ec._Mutation_CreateTag(ctx, field)
-		case "UpdateTag":
-			out.Values[i] = ec._Mutation_UpdateTag(ctx, field)
-		case "DeleteTag":
-			out.Values[i] = ec._Mutation_DeleteTag(ctx, field)
 		case "CreateUser":
 			out.Values[i] = ec._Mutation_CreateUser(ctx, field)
 		case "UpdateUser":
@@ -4401,6 +4460,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				res = ec._Query_GetAllArticles(ctx, field)
 				return res
 			})
+		case "GetArticlesByTags":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetArticlesByTags(ctx, field)
+				return res
+			})
+		case "GetArticlesByCategory":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetArticlesByCategory(ctx, field)
+				return res
+			})
 		case "GetCategoryById":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -4421,28 +4502,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_GetAllCategorys(ctx, field)
-				return res
-			})
-		case "GetTagById":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_GetTagById(ctx, field)
-				return res
-			})
-		case "GetAllTags":
-			field := field
-			out.Concurrently(i, func() (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_GetAllTags(ctx, field)
 				return res
 			})
 		case "GetUserById":
@@ -4514,42 +4573,6 @@ func (ec *executionContext) _Tag(ctx context.Context, sel ast.SelectionSet, obj 
 	return out
 }
 
-var tagResponseImplementors = []string{"TagResponse"}
-
-func (ec *executionContext) _TagResponse(ctx context.Context, sel ast.SelectionSet, obj *models.TagResponse) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, tagResponseImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	var invalids uint32
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("TagResponse")
-		case "message":
-			out.Values[i] = ec._TagResponse_message(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "status":
-			out.Values[i] = ec._TagResponse_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "data":
-			out.Values[i] = ec._TagResponse_data(ctx, field, obj)
-		case "dataList":
-			out.Values[i] = ec._TagResponse_dataList(ctx, field, obj)
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch()
-	if invalids > 0 {
-		return graphql.Null
-	}
-	return out
-}
-
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *models.User) graphql.Marshaler {
@@ -4581,6 +4604,8 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "role":
+			out.Values[i] = ec._User_role(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4928,6 +4953,16 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
+func (ec *executionContext) unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, v interface{}) (models.Role, error) {
+	var res models.Role
+	err := res.UnmarshalGQL(v)
+	return res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, sel ast.SelectionSet, v models.Role) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.WrapErrorWithInputPath(ctx, err)
@@ -4943,9 +4978,34 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalNTagInput2kushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx context.Context, v interface{}) (models.TagInput, error) {
+func (ec *executionContext) unmarshalNTagInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx context.Context, v interface{}) (*models.TagInput, error) {
 	res, err := ec.unmarshalInputTagInput(ctx, v)
+	return &res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
+	res, err := graphql.UnmarshalTime(v)
 	return res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
+	res := graphql.MarshalTime(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNUser2ᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *models.User) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._User(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNUserInput2kushᚑgraphqlᚋappᚋmodelsᚐUserInput(ctx context.Context, v interface{}) (models.UserInput, error) {
@@ -5307,6 +5367,14 @@ func (ec *executionContext) marshalOCategory2ᚖkushᚑgraphqlᚋappᚋmodelsᚐ
 	return ec._Category(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalOCategoryInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx context.Context, v interface{}) (*models.CategoryInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputCategoryInput(ctx, v)
+	return &res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
 func (ec *executionContext) marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx context.Context, sel ast.SelectionSet, v *models.CategoryResponse) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -5314,40 +5382,20 @@ func (ec *executionContext) marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋm
 	return ec._CategoryResponse(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+func (ec *executionContext) unmarshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, v interface{}) (*models.Role, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var vSlice []interface{}
-	if v != nil {
-		if tmp1, ok := v.([]interface{}); ok {
-			vSlice = tmp1
-		} else {
-			vSlice = []interface{}{v}
-		}
-	}
-	var err error
-	res := make([]string, len(vSlice))
-	for i := range vSlice {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithIndex(i))
-		res[i], err = ec.unmarshalNID2string(ctx, vSlice[i])
-		if err != nil {
-			return nil, graphql.WrapErrorWithInputPath(ctx, err)
-		}
-	}
-	return res, nil
+	var res = new(models.Role)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.WrapErrorWithInputPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOID2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+func (ec *executionContext) marshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, sel ast.SelectionSet, v *models.Role) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	ret := make(graphql.Array, len(v))
-	for i := range v {
-		ret[i] = ec.marshalNID2string(ctx, sel, v[i])
-	}
-
-	return ret
+	return v
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
@@ -5421,11 +5469,60 @@ func (ec *executionContext) marshalOTag2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTag(c
 	return ec._Tag(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOTagResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagResponse(ctx context.Context, sel ast.SelectionSet, v *models.TagResponse) graphql.Marshaler {
+func (ec *executionContext) unmarshalOTagInput2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx context.Context, v interface{}) ([]*models.TagInput, error) {
 	if v == nil {
-		return graphql.Null
+		return nil, nil
 	}
-	return ec._TagResponse(ctx, sel, v)
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]*models.TagInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithIndex(i))
+		res[i], err = ec.unmarshalOTagInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, graphql.WrapErrorWithInputPath(ctx, err)
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOTagInput2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInputᚄ(ctx context.Context, v interface{}) ([]*models.TagInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]*models.TagInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithIndex(i))
+		res[i], err = ec.unmarshalNTagInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, graphql.WrapErrorWithInputPath(ctx, err)
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOTagInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx context.Context, v interface{}) (*models.TagInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputTagInput(ctx, v)
+	return &res, graphql.WrapErrorWithInputPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOUser2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v []*models.User) graphql.Marshaler {

@@ -1,10 +1,11 @@
 package db
 
 import (
-	"github.com/jinzhu/gorm"
-	"log"
 	"kush-graphql/app/models"
+	"log"
 	"os"
+
+	"github.com/jinzhu/gorm"
 )
 
 func OpenDB(database string) *gorm.DB {
@@ -22,5 +23,5 @@ func OpenDB(database string) *gorm.DB {
 }
 
 func Automigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.User{}).Error
+	return db.AutoMigrate(&models.User{}, &models.Category{}, &models.Article{}).Error
 }

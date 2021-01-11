@@ -5,7 +5,6 @@ package interfaces
 
 import (
 	"context"
-	"fmt"
 	"kush-graphql/app/models"
 	"kush-graphql/helpers"
 	"log"
@@ -44,11 +43,53 @@ func (r *mutationResolver) CreateUser(ctx context.Context, user models.UserInput
 }
 
 func (r *mutationResolver) UpdateUser(ctx context.Context, id string, user models.UserInput) (*models.UserResponse, error) {
-	panic(fmt.Errorf("not implemented"))
+	usr, err := r.UserService.GetUserByID(id)
+	if err != nil {
+		log.Println("Error getting the user to update: ", err)
+		return &models.UserResponse{
+			Message: "Error getting the user",
+			Status:  http.StatusUnprocessableEntity,
+		}, nil
+	}
+
+	usr.Username = user.Username
+
+	if ok, errorString := helpers.ValidateInputs(*usr); !ok {
+		return &models.UserResponse{
+			Message: errorString,
+			Status:  http.StatusUnprocessableEntity,
+		}, nil
+	}
+
+	userCreated, err := r.UserService.UpdateUser(usr)
+	if err != nil {
+		log.Println("User updating error: ", err)
+		return &models.UserResponse{
+			Message: "Error updating User",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	return &models.UserResponse{
+		Message: "Successfully updated user",
+		Status:  http.StatusOK,
+		Data:    userCreated,
+	}, nil
 }
 
 func (r *mutationResolver) DeleteUser(ctx context.Context, id string) (*models.UserResponse, error) {
-	panic(fmt.Errorf("not implemented"))
+	err := r.UserService.DeleteUser(id)
+	if err != nil {
+		return &models.UserResponse{
+			Message: "Something went wrong deleting the User.",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	return &models.UserResponse{
+		Message: "Successfully deleted User",
+		Status:  http.StatusOK,
+	}, nil
 }
 
 func (r *queryResolver) GetUserByID(ctx context.Context, id string) (*models.UserResponse, error) {

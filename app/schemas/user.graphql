@@ -3,23 +3,25 @@ type User {
   username: String!
   emailAddress: String!
   password: String!
+  role: Role
 }
 
 input UserInput {
   username: String!
   emailAddress: String!
   password: String!
+  role: Role!
 }
 
 extend type Mutation {
-  CreateUser(User: UserInput!): UserResponse
-  UpdateUser(id: ID!, User: UserInput!): UserResponse
-  DeleteUser(id: ID!): UserResponse
+  CreateUser(User: UserInput!): UserResponse @hasRole(role: ADMIN)
+  UpdateUser(id: ID!, User: UserInput!): UserResponse @hasRole(role: ADMIN)
+  DeleteUser(id: ID!): UserResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
-  GetUserById(id: ID!): UserResponse
-  GetAllUsers: UserResponse
+  GetUserById(id: ID!): UserResponse @hasRole(role: ADMIN)
+  GetAllUsers: UserResponse @hasRole(role: ADMIN)
 }
 
 type UserResponse {

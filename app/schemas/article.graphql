@@ -3,27 +3,34 @@ type Article {
   name: String!
   brief: String!
   content: String!
-  categoryID: ID!
-  tags: [ID!]
+  category: Category
+  tags: [Tag]
+  author: User!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 input ArticleInput {
   name: String!
-  categoryID: ID!
+  category: CategoryInput
   brief: String!
   content: String!
-  tags: [ID!]
+  tags: [TagInput]
+  author: ID!
 }
 
 extend type Mutation {
-  CreateArticle(Article: ArticleInput!): ArticleResponse
+  CreateArticle(Article: ArticleInput!): ArticleResponse @hasRole(role: ADMIN)
   UpdateArticle(id: ID!, Article: ArticleInput!): ArticleResponse
-  DeleteArticle(id: ID!): ArticleResponse
+    @hasRole(role: ADMIN)
+  DeleteArticle(id: ID!): ArticleResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
   GetArticleById(id: ID!): ArticleResponse
   GetAllArticles: ArticleResponse
+  GetArticlesByTags(tags: [TagInput!]): ArticleResponse
+  GetArticlesByCategory(category: CategoryInput!): ArticleResponse
 }
 
 type ArticleResponse {

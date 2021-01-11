@@ -2,21 +2,32 @@
 
 package models
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+	"time"
+)
+
 type Article struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Brief      string   `json:"brief"`
-	Content    string   `json:"content"`
-	CategoryID string   `json:"categoryID"`
-	Tags       []string `json:"tags"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Brief     string    `json:"brief"`
+	Content   string    `json:"content"`
+	Category  *Category `json:"category"`
+	Tags      []*Tag    `json:"tags"`
+	Author    *User     `json:"author"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type ArticleInput struct {
-	Name       string   `json:"name"`
-	CategoryID string   `json:"categoryID"`
-	Brief      string   `json:"brief"`
-	Content    string   `json:"content"`
-	Tags       []string `json:"tags"`
+	Name     string         `json:"name"`
+	Category *CategoryInput `json:"category"`
+	Brief    string         `json:"brief"`
+	Content  string         `json:"content"`
+	Tags     []*TagInput    `json:"tags"`
+	Author   string         `json:"author"`
 }
 
 type ArticleResponse struct {
@@ -27,14 +38,12 @@ type ArticleResponse struct {
 }
 
 type Category struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	ParentID string `json:"parentID"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type CategoryInput struct {
-	Name     string `json:"name"`
-	ParentID string `json:"parentID"`
+	Name string `json:"name"`
 }
 
 type CategoryResponse struct {
@@ -53,24 +62,19 @@ type TagInput struct {
 	Name string `json:"name"`
 }
 
-type TagResponse struct {
-	Message  string `json:"message"`
-	Status   int    `json:"status"`
-	Data     *Tag   `json:"data"`
-	DataList []*Tag `json:"dataList"`
-}
-
 type User struct {
 	ID           string `json:"id"`
 	Username     string `json:"username"`
 	EmailAddress string `json:"emailAddress"`
 	Password     string `json:"password"`
+	Role         *Role  `json:"role"`
 }
 
 type UserInput struct {
 	Username     string `json:"username"`
 	EmailAddress string `json:"emailAddress"`
 	Password     string `json:"password"`
+	Role         Role   `json:"role"`
 }
 
 type UserResponse struct {
@@ -78,4 +82,45 @@ type UserResponse struct {
 	Status   int     `json:"status"`
 	Data     *User   `json:"data"`
 	DataList []*User `json:"dataList"`
+}
+
+type Role string
+
+const (
+	RoleAdmin Role = "ADMIN"
+	RoleUser  Role = "USER"
+)
+
+var AllRole = []Role{
+	RoleAdmin,
+	RoleUser,
+}
+
+func (e Role) IsValid() bool {
+	switch e {
+	case RoleAdmin, RoleUser:
+		return true
+	}
+	return false
+}
+
+func (e Role) String() string {
+	return string(e)
+}
+
+func (e *Role) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Role(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Role", str)
+	}
+	return nil
+}
+
+func (e Role) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }

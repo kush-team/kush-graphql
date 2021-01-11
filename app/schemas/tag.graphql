@@ -6,21 +6,3 @@ type Tag {
 input TagInput {
   name: String!
 }
-
-extend type Mutation {
-  CreateTag(Tag: TagInput!): TagResponse
-  UpdateTag(id: ID!, Tag: TagInput!): TagResponse
-  DeleteTag(id: ID!): TagResponse
-}
-
-extend type Query {
-  GetTagById(id: ID!): TagResponse
-  GetAllTags: TagResponse
-}
-
-type TagResponse {
-  message: String!
-  status: Int!
-  data: Tag
-  dataList: [Tag]
-}

@@ -1,19 +1,24 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"log"
+	"kush-graphql/app/domain/repository/category"
 	"kush-graphql/app/domain/repository/user"
 	"kush-graphql/app/generated"
 	"kush-graphql/app/infrastructure/db"
 	"kush-graphql/app/infrastructure/persistence"
 	"kush-graphql/app/interfaces"
+	"kush-graphql/app/models"
+	"log"
 	"net/http"
 	"os"
+
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 func init() {
@@ -42,14 +47,23 @@ func main() {
 
 	conn := db.OpenDB(dbConn)
 
-
 	var userService user.UserService
+	var categoryService category.CategoryService
 
 	userService = persistence.NewUser(conn)
+	categoryService = persistence.NewCategory(conn)
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &interfaces.Resolver{
-		UserService:           userService,
-	}}))
+	c := generated.Config{Resolvers: &interfaces.Resolver{
+		UserService:     userService,
+		CategoryService: categoryService,
+	}}
+
+	c.Directives.HasRole = func(ctx context.Context, obj interface{}, next graphql.Resolver, role models.Role) (interface{}, error) {
+		// TO-DO Get headers and validate token
+		return next(ctx)
+	}
+
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(c))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)

@@ -30,6 +30,14 @@ func (r *queryResolver) GetAllArticles(ctx context.Context) (*models.ArticleResp
 	panic(fmt.Errorf("not implemented"))
 }
 
+func (r *queryResolver) GetArticlesByTags(ctx context.Context, tags []*models.TagInput) (*models.ArticleResponse, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
+func (r *queryResolver) GetArticlesByCategory(ctx context.Context, category models.CategoryInput) (*models.ArticleResponse, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 

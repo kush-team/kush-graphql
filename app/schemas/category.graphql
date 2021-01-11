@@ -1,18 +1,18 @@
 type Category {
   id: ID!
   name: String!
-  parentID: ID!
 }
 
 input CategoryInput {
   name: String!
-  parentID: ID!
 }
 
 extend type Mutation {
   CreateCategory(Category: CategoryInput!): CategoryResponse
+    @hasRole(role: ADMIN)
   UpdateCategory(id: ID!, Category: CategoryInput!): CategoryResponse
-  DeleteCategory(id: ID!): CategoryResponse
+    @hasRole(role: ADMIN)
+  DeleteCategory(id: ID!): CategoryResponse @hasRole(role: ADMIN)
 }
 
 extend type Query {
