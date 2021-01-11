@@ -5,17 +5,23 @@ package interfaces
 
 import (
 	"context"
+	"kush-graphql/app/auth"
 	"kush-graphql/app/models"
 	"kush-graphql/helpers"
 	"log"
 	"net/http"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func (r *mutationResolver) CreateUser(ctx context.Context, user models.UserInput) (*models.UserResponse, error) {
+	hashedPassword, err := HashPassword(user.Password)
+
 	usr := &models.User{
 		Username:     user.Username,
-		Password:     user.Password,
+		Password:     hashedPassword,
 		EmailAddress: user.EmailAddress,
+		Role:         user.Role,
 	}
 
 	if ok, errorString := helpers.ValidateInputs(*usr); !ok {
@@ -92,6 +98,36 @@ func (r *mutationResolver) DeleteUser(ctx context.Context, id string) (*models.U
 	}, nil
 }
 
+func (r *mutationResolver) Login(ctx context.Context, emailAddress string, password string) (*models.LoginResponse, error) {
+	user, err := r.UserService.GetUserByEmail(emailAddress)
+
+	if err != nil {
+		return &models.LoginResponse{
+			Message: "Something went wrong login the User.",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	match := CheckPasswordHash(password, user.Password)
+
+	if match {
+		token, err := auth.GenerateToken(emailAddress)
+		if err == nil {
+			return &models.LoginResponse{
+				Message: "Successfully login",
+				Status:  http.StatusOK,
+				Token:   &token,
+			}, nil
+		}
+	}
+
+	return &models.LoginResponse{
+		Message: "Something went wrong login the User.",
+		Status:  http.StatusUnprocessableEntity,
+	}, nil
+
+}
+
 func (r *queryResolver) GetUserByID(ctx context.Context, id string) (*models.UserResponse, error) {
 	user, err := r.UserService.GetUserByID(id)
 	if err != nil {
@@ -124,4 +160,13 @@ func (r *queryResolver) GetAllUsers(ctx context.Context) (*models.UserResponse, 
 		Status:   http.StatusOK,
 		DataList: users,
 	}, nil
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }

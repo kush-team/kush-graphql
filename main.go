@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"kush-graphql/app/auth"
 	"kush-graphql/app/domain/repository/category"
 	"kush-graphql/app/domain/repository/user"
 	"kush-graphql/app/generated"
@@ -17,6 +18,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/go-chi/chi"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -42,6 +44,9 @@ func main() {
 	if port == "" {
 		port = defaultPort
 	}
+	router := chi.NewRouter()
+
+	router.Use(auth.Middleware())
 
 	dbConn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable password=%s", databaseHost, databasePort, databaseUser, databaseName, databasePassword)
 
@@ -60,14 +65,26 @@ func main() {
 
 	c.Directives.HasRole = func(ctx context.Context, obj interface{}, next graphql.Resolver, role models.Role) (interface{}, error) {
 		// TO-DO Get headers and validate token
-		return next(ctx)
+		user := auth.ForContext(ctx)
+
+		if user == nil {
+			return nil, fmt.Errorf("Access denied")
+		}
+
+		user, err := userService.GetUserByEmail(user.EmailAddress)
+
+		if err == nil && user != nil && user.Role != models.RoleAdmin {
+			return nil, fmt.Errorf("Access denied")
+		} else {
+			return next(ctx)
+		}
 	}
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(c))
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	router.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }

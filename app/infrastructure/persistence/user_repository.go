@@ -1,9 +1,10 @@
 package persistence
 
 import (
-	"github.com/jinzhu/gorm"
 	"kush-graphql/app/domain/repository/user"
 	"kush-graphql/app/models"
+
+	"github.com/jinzhu/gorm"
 )
 
 type userService struct {
@@ -57,6 +58,18 @@ func (s *userService) GetUserByID(id string) (*models.User, error) {
 	usr := &models.User{}
 
 	err := s.db.Where("id = ?", id).Take(&usr).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return usr, nil
+}
+
+func (s *userService) GetUserByEmail(emailAddress string) (*models.User, error) {
+
+	usr := &models.User{}
+
+	err := s.db.Where("email_address = ?", emailAddress).Take(&usr).Error
 	if err != nil {
 		return nil, err
 	}

@@ -76,6 +76,12 @@ type ComplexityRoot struct {
 		Status   func(childComplexity int) int
 	}
 
+	LoginResponse struct {
+		Message func(childComplexity int) int
+		Status  func(childComplexity int) int
+		Token   func(childComplexity int) int
+	}
+
 	Mutation struct {
 		CreateArticle  func(childComplexity int, article models.ArticleInput) int
 		CreateCategory func(childComplexity int, category models.CategoryInput) int
@@ -83,6 +89,7 @@ type ComplexityRoot struct {
 		DeleteArticle  func(childComplexity int, id string) int
 		DeleteCategory func(childComplexity int, id string) int
 		DeleteUser     func(childComplexity int, id string) int
+		Login          func(childComplexity int, emailAddress string, password string) int
 		UpdateArticle  func(childComplexity int, id string, article models.ArticleInput) int
 		UpdateCategory func(childComplexity int, id string, category models.CategoryInput) int
 		UpdateUser     func(childComplexity int, id string, user models.UserInput) int
@@ -130,6 +137,7 @@ type MutationResolver interface {
 	CreateUser(ctx context.Context, user models.UserInput) (*models.UserResponse, error)
 	UpdateUser(ctx context.Context, id string, user models.UserInput) (*models.UserResponse, error)
 	DeleteUser(ctx context.Context, id string) (*models.UserResponse, error)
+	Login(ctx context.Context, emailAddress string, password string) (*models.LoginResponse, error)
 }
 type QueryResolver interface {
 	GetArticleByID(ctx context.Context, id string) (*models.ArticleResponse, error)
@@ -290,6 +298,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.CategoryResponse.Status(childComplexity), true
 
+	case "LoginResponse.message":
+		if e.complexity.LoginResponse.Message == nil {
+			break
+		}
+
+		return e.complexity.LoginResponse.Message(childComplexity), true
+
+	case "LoginResponse.status":
+		if e.complexity.LoginResponse.Status == nil {
+			break
+		}
+
+		return e.complexity.LoginResponse.Status(childComplexity), true
+
+	case "LoginResponse.token":
+		if e.complexity.LoginResponse.Token == nil {
+			break
+		}
+
+		return e.complexity.LoginResponse.Token(childComplexity), true
+
 	case "Mutation.CreateArticle":
 		if e.complexity.Mutation.CreateArticle == nil {
 			break
@@ -361,6 +390,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteUser(childComplexity, args["id"].(string)), true
+
+	case "Mutation.Login":
+		if e.complexity.Mutation.Login == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_Login_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.Login(childComplexity, args["emailAddress"].(string), args["password"].(string)), true
 
 	case "Mutation.UpdateArticle":
 		if e.complexity.Mutation.UpdateArticle == nil {
@@ -716,7 +757,7 @@ input TagInput {
   username: String!
   emailAddress: String!
   password: String!
-  role: Role
+  role: Role!
 }
 
 input UserInput {
@@ -730,6 +771,7 @@ extend type Mutation {
   CreateUser(User: UserInput!): UserResponse @hasRole(role: ADMIN)
   UpdateUser(id: ID!, User: UserInput!): UserResponse @hasRole(role: ADMIN)
   DeleteUser(id: ID!): UserResponse @hasRole(role: ADMIN)
+  Login(emailAddress: String!, password: String!): LoginResponse
 }
 
 extend type Query {
@@ -742,6 +784,12 @@ type UserResponse {
   status: Int!
   data: User
   dataList: [User]
+}
+
+type LoginResponse {
+  message: String!
+  status: Int!
+  token: String
 }
 `, BuiltIn: false},
 }
@@ -853,6 +901,30 @@ func (ec *executionContext) field_Mutation_DeleteUser_args(ctx context.Context, 
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_Login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["emailAddress"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("emailAddress"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["emailAddress"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["password"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("password"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["password"] = arg1
 	return args, nil
 }
 
@@ -1684,6 +1756,105 @@ func (ec *executionContext) _CategoryResponse_dataList(ctx context.Context, fiel
 	return ec.marshalOCategory2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐCategory(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _LoginResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.LoginResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "LoginResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Message, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _LoginResponse_status(ctx context.Context, field graphql.CollectedField, obj *models.LoginResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "LoginResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _LoginResponse_token(ctx context.Context, field graphql.CollectedField, obj *models.LoginResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "LoginResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Mutation_CreateArticle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2240,6 +2411,44 @@ func (ec *executionContext) _Mutation_DeleteUser(ctx context.Context, field grap
 	res := resTmp.(*models.UserResponse)
 	fc.Result = res
 	return ec.marshalOUserResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐUserResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_Login(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_Login_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().Login(rctx, args["emailAddress"].(string), args["password"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.LoginResponse)
+	fc.Result = res
+	return ec.marshalOLoginResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐLoginResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_GetArticleById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2870,11 +3079,14 @@ func (ec *executionContext) _User_role(ctx context.Context, field graphql.Collec
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*models.Role)
+	res := resTmp.(models.Role)
 	fc.Result = res
-	return ec.marshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, field.Selections, res)
+	return ec.marshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _UserResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.UserResponse) (ret graphql.Marshaler) {
@@ -4379,6 +4591,40 @@ func (ec *executionContext) _CategoryResponse(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var loginResponseImplementors = []string{"LoginResponse"}
+
+func (ec *executionContext) _LoginResponse(ctx context.Context, sel ast.SelectionSet, obj *models.LoginResponse) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, loginResponseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LoginResponse")
+		case "message":
+			out.Values[i] = ec._LoginResponse_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "status":
+			out.Values[i] = ec._LoginResponse_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "token":
+			out.Values[i] = ec._LoginResponse_token(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -4412,6 +4658,8 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec._Mutation_UpdateUser(ctx, field)
 		case "DeleteUser":
 			out.Values[i] = ec._Mutation_DeleteUser(ctx, field)
+		case "Login":
+			out.Values[i] = ec._Mutation_Login(ctx, field)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4606,6 +4854,9 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "role":
 			out.Values[i] = ec._User_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5382,20 +5633,11 @@ func (ec *executionContext) marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋm
 	return ec._CategoryResponse(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, v interface{}) (*models.Role, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var res = new(models.Role)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.WrapErrorWithInputPath(ctx, err)
-}
-
-func (ec *executionContext) marshalORole2ᚖkushᚑgraphqlᚋappᚋmodelsᚐRole(ctx context.Context, sel ast.SelectionSet, v *models.Role) graphql.Marshaler {
+func (ec *executionContext) marshalOLoginResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐLoginResponse(ctx context.Context, sel ast.SelectionSet, v *models.LoginResponse) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	return ec._LoginResponse(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {

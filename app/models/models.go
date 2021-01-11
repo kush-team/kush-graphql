@@ -53,6 +53,12 @@ type CategoryResponse struct {
 	DataList []*Category `json:"dataList"`
 }
 
+type LoginResponse struct {
+	Message string  `json:"message"`
+	Status  int     `json:"status"`
+	Token   *string `json:"token"`
+}
+
 type Tag struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -67,7 +73,7 @@ type User struct {
 	Username     string `json:"username"`
 	EmailAddress string `json:"emailAddress"`
 	Password     string `json:"password"`
-	Role         *Role  `json:"role"`
+	Role         Role   `json:"role"`
 }
 
 type UserInput struct {

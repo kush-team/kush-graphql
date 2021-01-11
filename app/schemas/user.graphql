@@ -3,7 +3,7 @@ type User {
   username: String!
   emailAddress: String!
   password: String!
-  role: Role
+  role: Role!
 }
 
 input UserInput {
@@ -17,6 +17,7 @@ extend type Mutation {
   CreateUser(User: UserInput!): UserResponse @hasRole(role: ADMIN)
   UpdateUser(id: ID!, User: UserInput!): UserResponse @hasRole(role: ADMIN)
   DeleteUser(id: ID!): UserResponse @hasRole(role: ADMIN)
+  Login(emailAddress: String!, password: String!): LoginResponse
 }
 
 extend type Query {
@@ -29,4 +30,10 @@ type UserResponse {
   status: Int!
   data: User
   dataList: [User]
+}
+
+type LoginResponse {
+  message: String!
+  status: Int!
+  token: String
 }
