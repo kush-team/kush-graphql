@@ -2,21 +2,18 @@ package main
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/99designs/gqlgen/api"
 	"github.com/99designs/gqlgen/codegen/config"
 	"github.com/99designs/gqlgen/plugin/modelgen"
-	"os"
 )
 
 //Add the gorm tags to the model definition
 func addGormTags(b *modelgen.ModelBuild) *modelgen.ModelBuild {
 	for _, model := range b.Models {
 		for _, field := range model.Fields {
-			if model.Name == "Question" && field.Name == "title" {
-				field.Tag += ` gorm:"unique" db:"` + field.Name + `"`
-			} else {
-				field.Tag += ` db:"` + field.Name + `"`
-			}
+			field.Tag += ` db:"` + field.Name + `"`
 		}
 	}
 

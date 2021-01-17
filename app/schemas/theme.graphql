@@ -1,0 +1,49 @@
+type Theme {
+  id: ID!
+  name: String!
+  authorID: ID!
+  author: User!
+
+  landingTemplate: String!
+  articlesTemplate: String!
+  articleTemplate: String!
+
+  landingQuery: String!
+  articlesQuery: String!
+  articleQuery: String!
+}
+
+input ThemeInput {
+  name: String!
+  authorID: ID!
+  landingTemplate: String!
+  articlesTemplate: String!
+  articleTemplate: String!
+
+  landingQuery: String!
+  articlesQuery: String!
+  articleQuery: String!
+}
+
+extend type Mutation {
+  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  DeleteTheme(id: ID!): ThemeResponse @hasRole(role: ADMIN)
+}
+
+extend type Query {
+  GetThemeById(id: ID!): ThemeResponse
+  GetThemeByName(name: String): ThemeResponse
+  GetAllThemes: ThemeResponse
+}
+
+type ThemeResponse {
+  message: String!
+  status: Int!
+  data: Theme
+  dataList: [Theme]
+}
+
+extend type Subscription {
+  themeChanged: Theme!
+}

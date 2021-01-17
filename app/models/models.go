@@ -11,7 +11,7 @@ import (
 
 type Article struct {
 	ID         string    `json:"id"`
-	Name       string    `json:"name"`
+	Title      string    `json:"title"`
 	Brief      string    `json:"brief"`
 	Content    string    `json:"content"`
 	CategoryID string    `json:"categoryID"`
@@ -24,7 +24,7 @@ type Article struct {
 }
 
 type ArticleInput struct {
-	Name       string      `json:"name"`
+	Title      string      `json:"title"`
 	CategoryID string      `json:"categoryID"`
 	Brief      string      `json:"brief"`
 	Content    string      `json:"content"`
@@ -60,6 +60,7 @@ type LoginResponse struct {
 	Message string  `json:"message"`
 	Status  int     `json:"status"`
 	Token   *string `json:"token"`
+	User    *User   `json:"user"`
 }
 
 type Tag struct {
@@ -69,6 +70,37 @@ type Tag struct {
 
 type TagInput struct {
 	Name string `json:"name"`
+}
+
+type Theme struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	AuthorID         string `json:"authorID"`
+	Author           *User  `json:"author"`
+	LandingTemplate  string `json:"landingTemplate"`
+	ArticlesTemplate string `json:"articlesTemplate"`
+	ArticleTemplate  string `json:"articleTemplate"`
+	LandingQuery     string `json:"landingQuery"`
+	ArticlesQuery    string `json:"articlesQuery"`
+	ArticleQuery     string `json:"articleQuery"`
+}
+
+type ThemeInput struct {
+	Name             string `json:"name"`
+	AuthorID         string `json:"authorID"`
+	LandingTemplate  string `json:"landingTemplate"`
+	ArticlesTemplate string `json:"articlesTemplate"`
+	ArticleTemplate  string `json:"articleTemplate"`
+	LandingQuery     string `json:"landingQuery"`
+	ArticlesQuery    string `json:"articlesQuery"`
+	ArticleQuery     string `json:"articleQuery"`
+}
+
+type ThemeResponse struct {
+	Message  string   `json:"message"`
+	Status   int      `json:"status"`
+	Data     *Theme   `json:"data"`
+	DataList []*Theme `json:"dataList"`
 }
 
 type User struct {

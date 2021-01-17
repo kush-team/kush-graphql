@@ -56,8 +56,8 @@ type ComplexityRoot struct {
 		Content    func(childComplexity int) int
 		CreatedAt  func(childComplexity int) int
 		ID         func(childComplexity int) int
-		Name       func(childComplexity int) int
 		Tags       func(childComplexity int) int
+		Title      func(childComplexity int) int
 		UpdatedAt  func(childComplexity int) int
 	}
 
@@ -85,39 +85,67 @@ type ComplexityRoot struct {
 		Message func(childComplexity int) int
 		Status  func(childComplexity int) int
 		Token   func(childComplexity int) int
+		User    func(childComplexity int) int
 	}
 
 	Mutation struct {
 		CreateArticle  func(childComplexity int, article models.ArticleInput) int
 		CreateCategory func(childComplexity int, category models.CategoryInput) int
+		CreateTheme    func(childComplexity int, theme models.ThemeInput) int
 		CreateUser     func(childComplexity int, user models.UserInput) int
 		DeleteArticle  func(childComplexity int, id string) int
 		DeleteCategory func(childComplexity int, id string) int
+		DeleteTheme    func(childComplexity int, id string) int
 		DeleteUser     func(childComplexity int, id string) int
 		Login          func(childComplexity int, emailAddress string, password string) int
 		UpdateArticle  func(childComplexity int, id string, article models.ArticleInput) int
 		UpdateCategory func(childComplexity int, id string, category models.CategoryInput) int
+		UpdateTheme    func(childComplexity int, id string, theme models.ThemeInput) int
 		UpdateUser     func(childComplexity int, id string, user models.UserInput) int
 	}
 
 	Query struct {
 		GetAllArticles        func(childComplexity int) int
 		GetAllCategorys       func(childComplexity int) int
+		GetAllThemes          func(childComplexity int) int
 		GetAllUsers           func(childComplexity int) int
 		GetArticleByID        func(childComplexity int, id string) int
 		GetArticlesByCategory func(childComplexity int, category models.CategoryInput) int
 		GetArticlesByTags     func(childComplexity int, tags []*models.TagInput) int
 		GetCategoryByID       func(childComplexity int, id string) int
+		GetThemeByID          func(childComplexity int, id string) int
+		GetThemeByName        func(childComplexity int, name *string) int
 		GetUserByID           func(childComplexity int, id string) int
 	}
 
 	Subscription struct {
 		ArticleAdded func(childComplexity int) int
+		ThemeChanged func(childComplexity int) int
 	}
 
 	Tag struct {
 		ID   func(childComplexity int) int
 		Name func(childComplexity int) int
+	}
+
+	Theme struct {
+		ArticleQuery     func(childComplexity int) int
+		ArticleTemplate  func(childComplexity int) int
+		ArticlesQuery    func(childComplexity int) int
+		ArticlesTemplate func(childComplexity int) int
+		Author           func(childComplexity int) int
+		AuthorID         func(childComplexity int) int
+		ID               func(childComplexity int) int
+		LandingQuery     func(childComplexity int) int
+		LandingTemplate  func(childComplexity int) int
+		Name             func(childComplexity int) int
+	}
+
+	ThemeResponse struct {
+		Data     func(childComplexity int) int
+		DataList func(childComplexity int) int
+		Message  func(childComplexity int) int
+		Status   func(childComplexity int) int
 	}
 
 	User struct {
@@ -144,6 +172,9 @@ type MutationResolver interface {
 	CreateCategory(ctx context.Context, category models.CategoryInput) (*models.CategoryResponse, error)
 	UpdateCategory(ctx context.Context, id string, category models.CategoryInput) (*models.CategoryResponse, error)
 	DeleteCategory(ctx context.Context, id string) (*models.CategoryResponse, error)
+	CreateTheme(ctx context.Context, theme models.ThemeInput) (*models.ThemeResponse, error)
+	UpdateTheme(ctx context.Context, id string, theme models.ThemeInput) (*models.ThemeResponse, error)
+	DeleteTheme(ctx context.Context, id string) (*models.ThemeResponse, error)
 	CreateUser(ctx context.Context, user models.UserInput) (*models.UserResponse, error)
 	UpdateUser(ctx context.Context, id string, user models.UserInput) (*models.UserResponse, error)
 	DeleteUser(ctx context.Context, id string) (*models.UserResponse, error)
@@ -156,11 +187,15 @@ type QueryResolver interface {
 	GetArticlesByCategory(ctx context.Context, category models.CategoryInput) (*models.ArticleResponse, error)
 	GetCategoryByID(ctx context.Context, id string) (*models.CategoryResponse, error)
 	GetAllCategorys(ctx context.Context) (*models.CategoryResponse, error)
+	GetThemeByID(ctx context.Context, id string) (*models.ThemeResponse, error)
+	GetThemeByName(ctx context.Context, name *string) (*models.ThemeResponse, error)
+	GetAllThemes(ctx context.Context) (*models.ThemeResponse, error)
 	GetUserByID(ctx context.Context, id string) (*models.UserResponse, error)
 	GetAllUsers(ctx context.Context) (*models.UserResponse, error)
 }
 type SubscriptionResolver interface {
 	ArticleAdded(ctx context.Context) (<-chan *models.Article, error)
+	ThemeChanged(ctx context.Context) (<-chan *models.Theme, error)
 }
 
 type executableSchema struct {
@@ -234,19 +269,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Article.ID(childComplexity), true
 
-	case "Article.name":
-		if e.complexity.Article.Name == nil {
-			break
-		}
-
-		return e.complexity.Article.Name(childComplexity), true
-
 	case "Article.tags":
 		if e.complexity.Article.Tags == nil {
 			break
 		}
 
 		return e.complexity.Article.Tags(childComplexity), true
+
+	case "Article.title":
+		if e.complexity.Article.Title == nil {
+			break
+		}
+
+		return e.complexity.Article.Title(childComplexity), true
 
 	case "Article.updatedAt":
 		if e.complexity.Article.UpdatedAt == nil {
@@ -353,6 +388,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.LoginResponse.Token(childComplexity), true
 
+	case "LoginResponse.user":
+		if e.complexity.LoginResponse.User == nil {
+			break
+		}
+
+		return e.complexity.LoginResponse.User(childComplexity), true
+
 	case "Mutation.CreateArticle":
 		if e.complexity.Mutation.CreateArticle == nil {
 			break
@@ -376,6 +418,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CreateCategory(childComplexity, args["Category"].(models.CategoryInput)), true
+
+	case "Mutation.CreateTheme":
+		if e.complexity.Mutation.CreateTheme == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_CreateTheme_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateTheme(childComplexity, args["Theme"].(models.ThemeInput)), true
 
 	case "Mutation.CreateUser":
 		if e.complexity.Mutation.CreateUser == nil {
@@ -412,6 +466,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteCategory(childComplexity, args["id"].(string)), true
+
+	case "Mutation.DeleteTheme":
+		if e.complexity.Mutation.DeleteTheme == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_DeleteTheme_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteTheme(childComplexity, args["id"].(string)), true
 
 	case "Mutation.DeleteUser":
 		if e.complexity.Mutation.DeleteUser == nil {
@@ -461,6 +527,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.UpdateCategory(childComplexity, args["id"].(string), args["Category"].(models.CategoryInput)), true
 
+	case "Mutation.UpdateTheme":
+		if e.complexity.Mutation.UpdateTheme == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_UpdateTheme_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateTheme(childComplexity, args["id"].(string), args["Theme"].(models.ThemeInput)), true
+
 	case "Mutation.UpdateUser":
 		if e.complexity.Mutation.UpdateUser == nil {
 			break
@@ -486,6 +564,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.GetAllCategorys(childComplexity), true
+
+	case "Query.GetAllThemes":
+		if e.complexity.Query.GetAllThemes == nil {
+			break
+		}
+
+		return e.complexity.Query.GetAllThemes(childComplexity), true
 
 	case "Query.GetAllUsers":
 		if e.complexity.Query.GetAllUsers == nil {
@@ -542,6 +627,30 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetCategoryByID(childComplexity, args["id"].(string)), true
 
+	case "Query.GetThemeById":
+		if e.complexity.Query.GetThemeByID == nil {
+			break
+		}
+
+		args, err := ec.field_Query_GetThemeById_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetThemeByID(childComplexity, args["id"].(string)), true
+
+	case "Query.GetThemeByName":
+		if e.complexity.Query.GetThemeByName == nil {
+			break
+		}
+
+		args, err := ec.field_Query_GetThemeByName_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetThemeByName(childComplexity, args["name"].(*string)), true
+
 	case "Query.GetUserById":
 		if e.complexity.Query.GetUserByID == nil {
 			break
@@ -561,6 +670,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.ArticleAdded(childComplexity), true
 
+	case "Subscription.themeChanged":
+		if e.complexity.Subscription.ThemeChanged == nil {
+			break
+		}
+
+		return e.complexity.Subscription.ThemeChanged(childComplexity), true
+
 	case "Tag.id":
 		if e.complexity.Tag.ID == nil {
 			break
@@ -574,6 +690,104 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Tag.Name(childComplexity), true
+
+	case "Theme.articleQuery":
+		if e.complexity.Theme.ArticleQuery == nil {
+			break
+		}
+
+		return e.complexity.Theme.ArticleQuery(childComplexity), true
+
+	case "Theme.articleTemplate":
+		if e.complexity.Theme.ArticleTemplate == nil {
+			break
+		}
+
+		return e.complexity.Theme.ArticleTemplate(childComplexity), true
+
+	case "Theme.articlesQuery":
+		if e.complexity.Theme.ArticlesQuery == nil {
+			break
+		}
+
+		return e.complexity.Theme.ArticlesQuery(childComplexity), true
+
+	case "Theme.articlesTemplate":
+		if e.complexity.Theme.ArticlesTemplate == nil {
+			break
+		}
+
+		return e.complexity.Theme.ArticlesTemplate(childComplexity), true
+
+	case "Theme.author":
+		if e.complexity.Theme.Author == nil {
+			break
+		}
+
+		return e.complexity.Theme.Author(childComplexity), true
+
+	case "Theme.authorID":
+		if e.complexity.Theme.AuthorID == nil {
+			break
+		}
+
+		return e.complexity.Theme.AuthorID(childComplexity), true
+
+	case "Theme.id":
+		if e.complexity.Theme.ID == nil {
+			break
+		}
+
+		return e.complexity.Theme.ID(childComplexity), true
+
+	case "Theme.landingQuery":
+		if e.complexity.Theme.LandingQuery == nil {
+			break
+		}
+
+		return e.complexity.Theme.LandingQuery(childComplexity), true
+
+	case "Theme.landingTemplate":
+		if e.complexity.Theme.LandingTemplate == nil {
+			break
+		}
+
+		return e.complexity.Theme.LandingTemplate(childComplexity), true
+
+	case "Theme.name":
+		if e.complexity.Theme.Name == nil {
+			break
+		}
+
+		return e.complexity.Theme.Name(childComplexity), true
+
+	case "ThemeResponse.data":
+		if e.complexity.ThemeResponse.Data == nil {
+			break
+		}
+
+		return e.complexity.ThemeResponse.Data(childComplexity), true
+
+	case "ThemeResponse.dataList":
+		if e.complexity.ThemeResponse.DataList == nil {
+			break
+		}
+
+		return e.complexity.ThemeResponse.DataList(childComplexity), true
+
+	case "ThemeResponse.message":
+		if e.complexity.ThemeResponse.Message == nil {
+			break
+		}
+
+		return e.complexity.ThemeResponse.Message(childComplexity), true
+
+	case "ThemeResponse.status":
+		if e.complexity.ThemeResponse.Status == nil {
+			break
+		}
+
+		return e.complexity.ThemeResponse.Status(childComplexity), true
 
 	case "User.articles":
 		if e.complexity.User.Articles == nil {
@@ -728,7 +942,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 var sources = []*ast.Source{
 	{Name: "app/schemas/article.graphql", Input: `type Article {
   id: ID!
-  name: String!
+  title: String!
   brief: String!
   content: String!
   categoryID: ID!
@@ -741,7 +955,7 @@ var sources = []*ast.Source{
 }
 
 input ArticleInput {
-  name: String!
+  title: String!
   categoryID: ID!
   brief: String!
   content: String!
@@ -824,6 +1038,56 @@ input TagInput {
   name: String!
 }
 `, BuiltIn: false},
+	{Name: "app/schemas/theme.graphql", Input: `type Theme {
+  id: ID!
+  name: String!
+  authorID: ID!
+  author: User!
+
+  landingTemplate: String!
+  articlesTemplate: String!
+  articleTemplate: String!
+
+  landingQuery: String!
+  articlesQuery: String!
+  articleQuery: String!
+}
+
+input ThemeInput {
+  name: String!
+  authorID: ID!
+  landingTemplate: String!
+  articlesTemplate: String!
+  articleTemplate: String!
+
+  landingQuery: String!
+  articlesQuery: String!
+  articleQuery: String!
+}
+
+extend type Mutation {
+  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  DeleteTheme(id: ID!): ThemeResponse @hasRole(role: ADMIN)
+}
+
+extend type Query {
+  GetThemeById(id: ID!): ThemeResponse
+  GetThemeByName(name: String): ThemeResponse
+  GetAllThemes: ThemeResponse
+}
+
+type ThemeResponse {
+  message: String!
+  status: Int!
+  data: Theme
+  dataList: [Theme]
+}
+
+extend type Subscription {
+  themeChanged: Theme!
+}
+`, BuiltIn: false},
 	{Name: "app/schemas/user.graphql", Input: `type User {
   id: ID!
   username: String!
@@ -863,6 +1127,7 @@ type LoginResponse {
   message: String!
   status: Int!
   token: String
+  user: User
 }
 `, BuiltIn: false},
 }
@@ -917,6 +1182,21 @@ func (ec *executionContext) field_Mutation_CreateCategory_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_CreateTheme_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 models.ThemeInput
+	if tmp, ok := rawArgs["Theme"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("Theme"))
+		arg0, err = ec.unmarshalNThemeInput2kushᚑgraphqlᚋappᚋmodelsᚐThemeInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["Theme"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_CreateUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -948,6 +1228,21 @@ func (ec *executionContext) field_Mutation_DeleteArticle_args(ctx context.Contex
 }
 
 func (ec *executionContext) field_Mutation_DeleteCategory_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_DeleteTheme_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
@@ -1049,6 +1344,30 @@ func (ec *executionContext) field_Mutation_UpdateCategory_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_UpdateTheme_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	var arg1 models.ThemeInput
+	if tmp, ok := rawArgs["Theme"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("Theme"))
+		arg1, err = ec.unmarshalNThemeInput2kushᚑgraphqlᚋappᚋmodelsᚐThemeInput(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["Theme"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_UpdateUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -1130,6 +1449,36 @@ func (ec *executionContext) field_Query_GetCategoryById_args(ctx context.Context
 		}
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_GetThemeById_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_GetThemeByName_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *string
+	if tmp, ok := rawArgs["name"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("name"))
+		arg0, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["name"] = arg0
 	return args, nil
 }
 
@@ -1235,7 +1584,7 @@ func (ec *executionContext) _Article_id(ctx context.Context, field graphql.Colle
 	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Article_name(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
+func (ec *executionContext) _Article_title(ctx context.Context, field graphql.CollectedField, obj *models.Article) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1252,7 +1601,7 @@ func (ec *executionContext) _Article_name(ctx context.Context, field graphql.Col
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Name, nil
+		return obj.Title, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2033,6 +2382,37 @@ func (ec *executionContext) _LoginResponse_token(ctx context.Context, field grap
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _LoginResponse_user(ctx context.Context, field graphql.CollectedField, obj *models.LoginResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "LoginResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.User, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.User)
+	fc.Result = res
+	return ec.marshalOUser2ᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Mutation_CreateArticle(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2403,6 +2783,192 @@ func (ec *executionContext) _Mutation_DeleteCategory(ctx context.Context, field 
 	res := resTmp.(*models.CategoryResponse)
 	fc.Result = res
 	return ec.marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_CreateTheme(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_CreateTheme_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().CreateTheme(rctx, args["Theme"].(models.ThemeInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ThemeResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ThemeResponse`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_UpdateTheme(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_UpdateTheme_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().UpdateTheme(rctx, args["id"].(string), args["Theme"].(models.ThemeInput))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ThemeResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ThemeResponse`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_DeleteTheme(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Mutation",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_DeleteTheme_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		directive0 := func(rctx context.Context) (interface{}, error) {
+			ctx = rctx // use context from middleware stack in children
+			return ec.resolvers.Mutation().DeleteTheme(rctx, args["id"].(string))
+		}
+		directive1 := func(ctx context.Context) (interface{}, error) {
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			if err != nil {
+				return nil, err
+			}
+			if ec.directives.HasRole == nil {
+				return nil, errors.New("directive hasRole is not implemented")
+			}
+			return ec.directives.HasRole(ctx, nil, directive0, role)
+		}
+
+		tmp, err := directive1(rctx)
+		if err != nil {
+			return nil, err
+		}
+		if tmp == nil {
+			return nil, nil
+		}
+		if data, ok := tmp.(*models.ThemeResponse); ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf(`unexpected type %T from directive, should be *kush-graphql/app/models.ThemeResponse`, tmp)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_CreateUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2843,6 +3409,113 @@ func (ec *executionContext) _Query_GetAllCategorys(ctx context.Context, field gr
 	return ec.marshalOCategoryResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐCategoryResponse(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Query_GetThemeById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_GetThemeById_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetThemeByID(rctx, args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_GetThemeByName(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_GetThemeByName_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetThemeByName(rctx, args["name"].(*string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_GetAllThemes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Query",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetAllThemes(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.ThemeResponse)
+	fc.Result = res
+	return ec.marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Query_GetUserById(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3073,6 +3746,50 @@ func (ec *executionContext) _Subscription_articleAdded(ctx context.Context, fiel
 	}
 }
 
+func (ec *executionContext) _Subscription_themeChanged(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Subscription",
+		Field:    field,
+		Args:     nil,
+		IsMethod: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ThemeChanged(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *models.Theme)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNTheme2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
+}
+
 func (ec *executionContext) _Tag_id(ctx context.Context, field graphql.CollectedField, obj *models.Tag) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -3139,6 +3856,476 @@ func (ec *executionContext) _Tag_name(ctx context.Context, field graphql.Collect
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_id(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_name(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_authorID(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AuthorID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_author(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Author, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*models.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_landingTemplate(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LandingTemplate, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_articlesTemplate(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ArticlesTemplate, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_articleTemplate(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ArticleTemplate, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_landingQuery(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.LandingQuery, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_articlesQuery(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ArticlesQuery, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Theme_articleQuery(ctx context.Context, field graphql.CollectedField, obj *models.Theme) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "Theme",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ArticleQuery, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ThemeResponse_message(ctx context.Context, field graphql.CollectedField, obj *models.ThemeResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ThemeResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Message, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ThemeResponse_status(ctx context.Context, field graphql.CollectedField, obj *models.ThemeResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ThemeResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ThemeResponse_data(ctx context.Context, field graphql.CollectedField, obj *models.ThemeResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ThemeResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Data, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*models.Theme)
+	fc.Result = res
+	return ec.marshalOTheme2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ThemeResponse_dataList(ctx context.Context, field graphql.CollectedField, obj *models.ThemeResponse) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:   "ThemeResponse",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DataList, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*models.Theme)
+	fc.Result = res
+	return ec.marshalOTheme2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *models.User) (ret graphql.Marshaler) {
@@ -4536,11 +5723,11 @@ func (ec *executionContext) unmarshalInputArticleInput(ctx context.Context, obj 
 
 	for k, v := range asMap {
 		switch k {
-		case "name":
+		case "title":
 			var err error
 
-			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("name"))
-			it.Name, err = ec.unmarshalNString2string(ctx, v)
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("title"))
+			it.Title, err = ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -4630,6 +5817,82 @@ func (ec *executionContext) unmarshalInputTagInput(ctx context.Context, obj inte
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputThemeInput(ctx context.Context, obj interface{}) (models.ThemeInput, error) {
+	var it models.ThemeInput
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "name":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("name"))
+			it.Name, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "authorID":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("authorID"))
+			it.AuthorID, err = ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "landingTemplate":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("landingTemplate"))
+			it.LandingTemplate, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "articlesTemplate":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("articlesTemplate"))
+			it.ArticlesTemplate, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "articleTemplate":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("articleTemplate"))
+			it.ArticleTemplate, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "landingQuery":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("landingQuery"))
+			it.LandingQuery, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "articlesQuery":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("articlesQuery"))
+			it.ArticlesQuery, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "articleQuery":
+			var err error
+
+			ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("articleQuery"))
+			it.ArticleQuery, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUserInput(ctx context.Context, obj interface{}) (models.UserInput, error) {
 	var it models.UserInput
 	var asMap = obj.(map[string]interface{})
@@ -4698,8 +5961,8 @@ func (ec *executionContext) _Article(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "name":
-			out.Values[i] = ec._Article_name(ctx, field, obj)
+		case "title":
+			out.Values[i] = ec._Article_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -4888,6 +6151,8 @@ func (ec *executionContext) _LoginResponse(ctx context.Context, sel ast.Selectio
 			}
 		case "token":
 			out.Values[i] = ec._LoginResponse_token(ctx, field, obj)
+		case "user":
+			out.Values[i] = ec._LoginResponse_user(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4926,6 +6191,12 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec._Mutation_UpdateCategory(ctx, field)
 		case "DeleteCategory":
 			out.Values[i] = ec._Mutation_DeleteCategory(ctx, field)
+		case "CreateTheme":
+			out.Values[i] = ec._Mutation_CreateTheme(ctx, field)
+		case "UpdateTheme":
+			out.Values[i] = ec._Mutation_UpdateTheme(ctx, field)
+		case "DeleteTheme":
+			out.Values[i] = ec._Mutation_DeleteTheme(ctx, field)
 		case "CreateUser":
 			out.Values[i] = ec._Mutation_CreateUser(ctx, field)
 		case "UpdateUser":
@@ -5026,6 +6297,39 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				res = ec._Query_GetAllCategorys(ctx, field)
 				return res
 			})
+		case "GetThemeById":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetThemeById(ctx, field)
+				return res
+			})
+		case "GetThemeByName":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetThemeByName(ctx, field)
+				return res
+			})
+		case "GetAllThemes":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_GetAllThemes(ctx, field)
+				return res
+			})
 		case "GetUserById":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -5078,6 +6382,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "articleAdded":
 		return ec._Subscription_articleAdded(ctx, fields[0])
+	case "themeChanged":
+		return ec._Subscription_themeChanged(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -5104,6 +6410,114 @@ func (ec *executionContext) _Tag(ctx context.Context, sel ast.SelectionSet, obj 
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var themeImplementors = []string{"Theme"}
+
+func (ec *executionContext) _Theme(ctx context.Context, sel ast.SelectionSet, obj *models.Theme) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, themeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Theme")
+		case "id":
+			out.Values[i] = ec._Theme_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Theme_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "authorID":
+			out.Values[i] = ec._Theme_authorID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "author":
+			out.Values[i] = ec._Theme_author(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "landingTemplate":
+			out.Values[i] = ec._Theme_landingTemplate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articlesTemplate":
+			out.Values[i] = ec._Theme_articlesTemplate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articleTemplate":
+			out.Values[i] = ec._Theme_articleTemplate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "landingQuery":
+			out.Values[i] = ec._Theme_landingQuery(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articlesQuery":
+			out.Values[i] = ec._Theme_articlesQuery(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "articleQuery":
+			out.Values[i] = ec._Theme_articleQuery(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var themeResponseImplementors = []string{"ThemeResponse"}
+
+func (ec *executionContext) _ThemeResponse(ctx context.Context, sel ast.SelectionSet, obj *models.ThemeResponse) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, themeResponseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ThemeResponse")
+		case "message":
+			out.Values[i] = ec._ThemeResponse_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "status":
+			out.Values[i] = ec._ThemeResponse_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "data":
+			out.Values[i] = ec._ThemeResponse_data(ctx, field, obj)
+		case "dataList":
+			out.Values[i] = ec._ThemeResponse_dataList(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5592,6 +7006,25 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 func (ec *executionContext) unmarshalNTagInput2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTagInput(ctx context.Context, v interface{}) (*models.TagInput, error) {
 	res, err := ec.unmarshalInputTagInput(ctx, v)
 	return &res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTheme2kushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx context.Context, sel ast.SelectionSet, v models.Theme) graphql.Marshaler {
+	return ec._Theme(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTheme2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx context.Context, sel ast.SelectionSet, v *models.Theme) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Theme(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNThemeInput2kushᚑgraphqlᚋappᚋmodelsᚐThemeInput(ctx context.Context, v interface{}) (models.ThemeInput, error) {
+	res, err := ec.unmarshalInputThemeInput(ctx, v)
+	return res, graphql.WrapErrorWithInputPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
@@ -6117,6 +7550,60 @@ func (ec *executionContext) unmarshalOTagInput2ᚖkushᚑgraphqlᚋappᚋmodels�
 	}
 	res, err := ec.unmarshalInputTagInput(ctx, v)
 	return &res, graphql.WrapErrorWithInputPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTheme2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx context.Context, sel ast.SelectionSet, v []*models.Theme) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalOTheme2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalOTheme2ᚖkushᚑgraphqlᚋappᚋmodelsᚐTheme(ctx context.Context, sel ast.SelectionSet, v *models.Theme) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Theme(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOThemeResponse2ᚖkushᚑgraphqlᚋappᚋmodelsᚐThemeResponse(ctx context.Context, sel ast.SelectionSet, v *models.ThemeResponse) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ThemeResponse(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOUser2ᚕᚖkushᚑgraphqlᚋappᚋmodelsᚐUser(ctx context.Context, sel ast.SelectionSet, v []*models.User) graphql.Marshaler {

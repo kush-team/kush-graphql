@@ -21,7 +21,7 @@ func (r *mutationResolver) CreateArticle(ctx context.Context, article models.Art
 	category, err := r.CategoryService.GetCategoryByID(article.CategoryID)
 
 	art := &models.Article{
-		Name:       article.Name,
+		Title:      article.Title,
 		AuthorID:   article.AuthorID,
 		Brief:      article.Brief,
 		Content:    article.Content,
@@ -70,7 +70,20 @@ func (r *mutationResolver) DeleteArticle(ctx context.Context, id string) (*model
 }
 
 func (r *queryResolver) GetArticleByID(ctx context.Context, id string) (*models.ArticleResponse, error) {
-	panic(fmt.Errorf("not implemented"))
+	article, err := r.ArticleService.GetArticleByID(id)
+	if err != nil {
+		log.Println("getting Article error: ", err)
+		return &models.ArticleResponse{
+			Message: "Something went wrong getting the Article.",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	return &models.ArticleResponse{
+		Message: "Successfully retrieved article",
+		Status:  http.StatusOK,
+		Data:    article,
+	}, nil
 }
 
 func (r *queryResolver) GetAllArticles(ctx context.Context) (*models.ArticleResponse, error) {
@@ -124,6 +137,12 @@ type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
 var articlePublishedChannel map[string]chan *models.Article
 
 func init() {

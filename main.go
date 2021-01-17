@@ -6,6 +6,7 @@ import (
 	"kush-graphql/app/auth"
 	"kush-graphql/app/domain/repository/article"
 	"kush-graphql/app/domain/repository/category"
+	"kush-graphql/app/domain/repository/theme"
 	"kush-graphql/app/domain/repository/user"
 	"kush-graphql/app/generated"
 	"kush-graphql/app/infrastructure/db"
@@ -15,11 +16,16 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/lru"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi"
+	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -56,15 +62,18 @@ func main() {
 	var userService user.UserService
 	var categoryService category.CategoryService
 	var articleService article.ArticleService
+	var themeService theme.ThemeService
 
 	userService = persistence.NewUser(conn)
 	categoryService = persistence.NewCategory(conn)
 	articleService = persistence.NewArticle(conn)
+	themeService = persistence.NewTheme(conn)
 
 	c := generated.Config{Resolvers: &interfaces.Resolver{
 		UserService:     userService,
 		CategoryService: categoryService,
 		ArticleService:  articleService,
+		ThemeService:    themeService,
 	}}
 
 	c.Directives.HasRole = func(ctx context.Context, obj interface{}, next graphql.Resolver, role models.Role) (interface{}, error) {
@@ -84,11 +93,57 @@ func main() {
 		}
 	}
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(c))
+	srv := handler.New(generated.NewExecutableSchema(c))
 
-	router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
-	router.Handle("/query", srv)
+	srv.AddTransport(&transport.Websocket{
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
+	})
+
+	srv.AddTransport(transport.Options{})
+	srv.AddTransport(transport.GET{})
+	srv.AddTransport(transport.POST{})
+	srv.AddTransport(transport.MultipartForm{})
+
+	srv.SetQueryCache(lru.New(1000))
+
+	srv.Use(extension.Introspection{})
+
+	srv.Use(extension.AutomaticPersistedQuery{
+		Cache: lru.New(100),
+	})
+
+	router.Handle("/playground", playground.Handler("GraphQL playground", "/graphql"))
+	router.Handle("/graphql", srv)
+
+	FileServer(router, "/", http.Dir("./web/dist/kush-blog"))
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, router))
+}
+
+// FileServer conveniently sets up a http.FileServer handler to serve
+// static files from a http.FileSystem.
+func FileServer(r chi.Router, path string, root http.FileSystem) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit any URL parameters.")
+	}
+
+	if path != "/" && path[len(path)-1] != '/' {
+		r.Get(path, http.RedirectHandler(path+"/", 301).ServeHTTP)
+		path += "/"
+	}
+	path += "*"
+
+	r.Get(path, func(w http.ResponseWriter, r *http.Request) {
+		rctx := chi.RouteContext(r.Context())
+		pathPrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+		fs := http.StripPrefix(pathPrefix, http.FileServer(root))
+		fs.ServeHTTP(w, r)
+	})
 }

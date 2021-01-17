@@ -1,6 +1,6 @@
 type Article {
   id: ID!
-  name: String!
+  title: String!
   brief: String!
   content: String!
   categoryID: ID!
@@ -13,7 +13,7 @@ type Article {
 }
 
 input ArticleInput {
-  name: String!
+  title: String!
   categoryID: ID!
   brief: String!
   content: String!

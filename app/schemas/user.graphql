@@ -37,4 +37,5 @@ type LoginResponse {
   message: String!
   status: Int!
   token: String
+  user: User
 }

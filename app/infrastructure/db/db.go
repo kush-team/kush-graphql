@@ -23,5 +23,5 @@ func OpenDB(database string) *gorm.DB {
 }
 
 func Automigrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.User{}, &models.Category{}, &models.Article{}).Error
+	return db.AutoMigrate(&models.User{}, &models.Category{}, &models.Article{}, &models.Theme{}).Error
 }

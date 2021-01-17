@@ -10,7 +10,6 @@ func (mod *User) BeforeCreate(scope *gorm.Scope) error {
 	return scope.SetColumn("id", uuid.String())
 }
 
-
 func (mod *Tag) BeforeCreate(scope *gorm.Scope) error {
 	uuid := uuid.NewV4()
 	return scope.SetColumn("id", uuid.String())
@@ -26,4 +25,7 @@ func (mod *Category) BeforeCreate(scope *gorm.Scope) error {
 	return scope.SetColumn("id", uuid.String())
 }
 
-
+func (mod *Theme) BeforeCreate(scope *gorm.Scope) error {
+	uuid := uuid.NewV4()
+	return scope.SetColumn("id", uuid.String())
+}

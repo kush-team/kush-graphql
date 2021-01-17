@@ -40,3 +40,14 @@ func (s *articleService) GetAllArticles() ([]*models.Article, error) {
 
 	return articles, nil
 }
+
+func (s *articleService) GetArticleByID(id string) (*models.Article, error) {
+
+	article := &models.Article{}
+	err := s.db.Preload("Author").Preload("Category").Where("id = ?", id).Take(&article).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return article, nil
+}
