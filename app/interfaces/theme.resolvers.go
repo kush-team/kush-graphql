@@ -14,6 +14,7 @@ import (
 )
 
 func (r *mutationResolver) CreateTheme(ctx context.Context, theme models.ThemeInput) (*models.ThemeResponse, error) {
+	author, err := r.UserService.GetUserByID(theme.AuthorID)
 	them := &models.Theme{
 		Name:             theme.Name,
 		AuthorID:         theme.AuthorID,
@@ -41,6 +42,8 @@ func (r *mutationResolver) CreateTheme(ctx context.Context, theme models.ThemeIn
 			Status:  http.StatusInternalServerError,
 		}, nil
 	}
+
+	themeCreated.Author = author
 
 	return &models.ThemeResponse{
 		Message: "Successfully created Theme",
