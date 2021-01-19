@@ -1066,8 +1066,8 @@ input ThemeInput {
 }
 
 extend type Mutation {
-  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
-  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: USER)
+  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: USER)
   DeleteTheme(id: ID!): ThemeResponse @hasRole(role: ADMIN)
 }
 
@@ -2813,7 +2813,7 @@ func (ec *executionContext) _Mutation_CreateTheme(ctx context.Context, field gra
 			return ec.resolvers.Mutation().CreateTheme(rctx, args["Theme"].(models.ThemeInput))
 		}
 		directive1 := func(ctx context.Context) (interface{}, error) {
-			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "USER")
 			if err != nil {
 				return nil, err
 			}
@@ -2875,7 +2875,7 @@ func (ec *executionContext) _Mutation_UpdateTheme(ctx context.Context, field gra
 			return ec.resolvers.Mutation().UpdateTheme(rctx, args["id"].(string), args["Theme"].(models.ThemeInput))
 		}
 		directive1 := func(ctx context.Context) (interface{}, error) {
-			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "ADMIN")
+			role, err := ec.unmarshalNRole2kushᚑgraphqlᚋappᚋmodelsᚐRole(ctx, "USER")
 			if err != nil {
 				return nil, err
 			}

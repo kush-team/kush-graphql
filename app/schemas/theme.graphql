@@ -26,8 +26,8 @@ input ThemeInput {
 }
 
 extend type Mutation {
-  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
-  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: ADMIN)
+  CreateTheme(Theme: ThemeInput!): ThemeResponse @hasRole(role: USER)
+  UpdateTheme(id: ID!, Theme: ThemeInput!): ThemeResponse @hasRole(role: USER)
   DeleteTheme(id: ID!): ThemeResponse @hasRole(role: ADMIN)
 }
 
