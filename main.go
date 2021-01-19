@@ -86,7 +86,7 @@ func main() {
 
 		user, err := userService.GetUserByEmail(user.EmailAddress)
 
-		if err == nil && user != nil && user.Role != models.RoleAdmin {
+		if err == nil && user != nil && user.Role != role && user.Role != models.RoleAdmin {
 			return nil, fmt.Errorf("Access denied")
 		} else {
 			return next(ctx)
