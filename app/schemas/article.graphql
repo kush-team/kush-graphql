@@ -32,7 +32,7 @@ extend type Query {
   GetArticleById(id: ID!): ArticleResponse
   GetAllArticles: ArticleResponse
   GetArticlesByTags(tags: [TagInput!]): ArticleResponse
-  GetArticlesByCategory(category: CategoryInput!): ArticleResponse
+  GetArticlesByCategory(categoryID: ID!): ArticleResponse
 }
 
 type ArticleResponse {

@@ -11,5 +11,5 @@ type ArticleService interface {
 	GetArticleByID(id string) (*models.Article, error)
 	GetAllArticles() ([]*models.Article, error)
 	//GetArticlesByTags(tags *[]models.Tag) ([]*models.Article, error)
-	//GetArticlesByCategory(category *models.Category) ([]*models.Article, error)
+	GetArticlesByCategory(categoryID string) ([]*models.Article, error)
 }

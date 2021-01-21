@@ -51,3 +51,22 @@ func (s *articleService) GetArticleByID(id string) (*models.Article, error) {
 
 	return article, nil
 }
+
+func (s *articleService) GetArticlesByCategory(categoryID string) ([]*models.Article, error) {
+
+	var articles []*models.Article
+
+	if categoryID != "" {
+		err := s.db.Preload("Category").Preload("Author").Where("category_id = ?", categoryID).Find(&articles).Error
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := s.db.Preload("Category").Preload("Author").Find(&articles).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return articles, nil
+}

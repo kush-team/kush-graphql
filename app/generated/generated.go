@@ -110,7 +110,7 @@ type ComplexityRoot struct {
 		GetAllThemes          func(childComplexity int) int
 		GetAllUsers           func(childComplexity int) int
 		GetArticleByID        func(childComplexity int, id string) int
-		GetArticlesByCategory func(childComplexity int, category models.CategoryInput) int
+		GetArticlesByCategory func(childComplexity int, categoryID string) int
 		GetArticlesByTags     func(childComplexity int, tags []*models.TagInput) int
 		GetCategoryByID       func(childComplexity int, id string) int
 		GetThemeByID          func(childComplexity int, id string) int
@@ -184,7 +184,7 @@ type QueryResolver interface {
 	GetArticleByID(ctx context.Context, id string) (*models.ArticleResponse, error)
 	GetAllArticles(ctx context.Context) (*models.ArticleResponse, error)
 	GetArticlesByTags(ctx context.Context, tags []*models.TagInput) (*models.ArticleResponse, error)
-	GetArticlesByCategory(ctx context.Context, category models.CategoryInput) (*models.ArticleResponse, error)
+	GetArticlesByCategory(ctx context.Context, categoryID string) (*models.ArticleResponse, error)
 	GetCategoryByID(ctx context.Context, id string) (*models.CategoryResponse, error)
 	GetAllCategorys(ctx context.Context) (*models.CategoryResponse, error)
 	GetThemeByID(ctx context.Context, id string) (*models.ThemeResponse, error)
@@ -601,7 +601,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.GetArticlesByCategory(childComplexity, args["category"].(models.CategoryInput)), true
+		return e.complexity.Query.GetArticlesByCategory(childComplexity, args["categoryID"].(string)), true
 
 	case "Query.GetArticlesByTags":
 		if e.complexity.Query.GetArticlesByTags == nil {
@@ -974,7 +974,7 @@ extend type Query {
   GetArticleById(id: ID!): ArticleResponse
   GetAllArticles: ArticleResponse
   GetArticlesByTags(tags: [TagInput!]): ArticleResponse
-  GetArticlesByCategory(category: CategoryInput!): ArticleResponse
+  GetArticlesByCategory(categoryID: ID!): ArticleResponse
 }
 
 type ArticleResponse {
@@ -1410,15 +1410,15 @@ func (ec *executionContext) field_Query_GetArticleById_args(ctx context.Context,
 func (ec *executionContext) field_Query_GetArticlesByCategory_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 models.CategoryInput
-	if tmp, ok := rawArgs["category"]; ok {
-		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("category"))
-		arg0, err = ec.unmarshalNCategoryInput2kushᚑgraphqlᚋappᚋmodelsᚐCategoryInput(ctx, tmp)
+	var arg0 string
+	if tmp, ok := rawArgs["categoryID"]; ok {
+		ctx := graphql.WithFieldInputContext(ctx, graphql.NewFieldInputWithField("categoryID"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["category"] = arg0
+	args["categoryID"] = arg0
 	return args, nil
 }
 
@@ -3326,7 +3326,7 @@ func (ec *executionContext) _Query_GetArticlesByCategory(ctx context.Context, fi
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetArticlesByCategory(rctx, args["category"].(models.CategoryInput))
+		return ec.resolvers.Query().GetArticlesByCategory(rctx, args["categoryID"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

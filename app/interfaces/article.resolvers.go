@@ -107,8 +107,22 @@ func (r *queryResolver) GetArticlesByTags(ctx context.Context, tags []*models.Ta
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *queryResolver) GetArticlesByCategory(ctx context.Context, category models.CategoryInput) (*models.ArticleResponse, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *queryResolver) GetArticlesByCategory(ctx context.Context, categoryID string) (*models.ArticleResponse, error) {
+	articles, err := r.ArticleService.GetArticlesByCategory(categoryID)
+
+	if err != nil {
+		log.Println("getting all articles error: ", err)
+		return &models.ArticleResponse{
+			Message: "Something went wrong getting all articles.",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	return &models.ArticleResponse{
+		Message:  "Successfully retrieved all articles",
+		Status:   http.StatusOK,
+		DataList: articles,
+	}, nil
 }
 
 func (r *subscriptionResolver) ArticleAdded(ctx context.Context) (<-chan *models.Article, error) {
