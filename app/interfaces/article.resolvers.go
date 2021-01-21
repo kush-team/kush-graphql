@@ -66,7 +66,18 @@ func (r *mutationResolver) UpdateArticle(ctx context.Context, id string, article
 }
 
 func (r *mutationResolver) DeleteArticle(ctx context.Context, id string) (*models.ArticleResponse, error) {
-	panic(fmt.Errorf("not implemented"))
+	err := r.ArticleService.DeleteArticle(id)
+	if err != nil {
+		return &models.ArticleResponse{
+			Message: "Something went wrong deleting the Article.",
+			Status:  http.StatusInternalServerError,
+		}, nil
+	}
+
+	return &models.ArticleResponse{
+		Message: "Successfully deleted Article",
+		Status:  http.StatusOK,
+	}, nil
 }
 
 func (r *queryResolver) GetArticleByID(ctx context.Context, id string) (*models.ArticleResponse, error) {

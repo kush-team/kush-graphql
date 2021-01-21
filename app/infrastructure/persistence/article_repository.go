@@ -70,3 +70,16 @@ func (s *articleService) GetArticlesByCategory(categoryID string) ([]*models.Art
 
 	return articles, nil
 }
+
+func (s *articleService) DeleteArticle(id string) error {
+
+	article := &models.Article{}
+
+	err := s.db.Where("id = ?", id).Delete(article).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
